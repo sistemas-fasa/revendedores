@@ -1,5 +1,5 @@
 <template>
-  <div class="ui-page space-y-6">
+  <div class="cart-page ui-page space-y-6">
     <PageHeader
       title="Carrito de compras"
       description="Revisá cantidades, peso y total estimado antes de confirmar el pedido."
@@ -25,7 +25,7 @@
 
     <div v-else class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section class="space-y-4">
-        <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div class="cart-review-card flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-sm font-bold uppercase text-red-700">Revisión del pedido</p>
             <p class="mt-1 text-sm text-gray-600">Ajustá cantidades antes de confirmar. Los cambios se guardan automáticamente.</p>
@@ -36,7 +36,7 @@
           </div>
         </div>
 
-        <div class="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:block">
+        <div class="cart-table-card hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:block">
           <table class="w-full border-collapse">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50 text-left text-xs font-bold uppercase text-gray-500">
@@ -109,7 +109,7 @@
         </div>
 
         <div class="space-y-3 lg:hidden">
-          <article v-for="item in cart.items" :key="item.articulo.clave" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <article v-for="item in cart.items" :key="item.articulo.clave" class="cart-mobile-item rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div class="flex gap-3">
               <img class="h-16 w-16 rounded-lg border border-gray-200 bg-white object-contain" :src="item.articulo.imagen || '/placeholder.png'" :alt="item.articulo.nombre">
               <div class="min-w-0 flex-1">
@@ -377,3 +377,61 @@ const checkout = async () => {
   }
 }
 </script>
+
+<style scoped>
+.cart-page {
+  padding-bottom: 32px;
+}
+
+.cart-review-card,
+.cart-table-card,
+.cart-mobile-item {
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.07);
+}
+
+.cart-review-card {
+  border-left: 5px solid #c81e1e;
+  background:
+    linear-gradient(90deg, rgba(253, 232, 232, 0.8), rgba(255, 255, 255, 0) 46%),
+    #ffffff;
+}
+
+.cart-table-card table {
+  border-spacing: 0;
+}
+
+.cart-table-card thead tr {
+  background: #f8fafc;
+}
+
+.cart-table-card tbody tr {
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.cart-table-card tbody tr:hover {
+  background: #fff7f7;
+}
+
+.cart-table-card input,
+.cart-mobile-item input {
+  appearance: textfield;
+}
+
+.cart-table-card button,
+.cart-mobile-item button {
+  cursor: pointer;
+}
+
+.cart-mobile-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.cart-mobile-item::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #c81e1e;
+}
+</style>
