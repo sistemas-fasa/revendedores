@@ -4,8 +4,6 @@
   <component :is="layout">
     <router-view />
     <PWAInstaller /> <!-- Agrega el componente de instalación -->
-    <PWAInstallButton />  <!-- Botón flotante de instalación -->
-    <PWAInstallPrompt />  <!-- Prompt automático de instalación para móvil -->
   </component>
 
 </template>
@@ -15,8 +13,6 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import PWAInstaller from './components/PWAInstaller.vue'
-import PWAInstallButton from './components/PWAInstallButton.vue'
-import PWAInstallPrompt from './components/PWAInstallPrompt.vue'
 
 // ✅ 2. Importa layouts
 import MainLayout from './layouts/MainLayout.vue';

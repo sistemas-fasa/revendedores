@@ -1,32 +1,25 @@
 <template>
-  <div class="w-full space-y-6">
-    <!-- Header -->
-    <div class="bg-white rounded-2xl shadow-lg border border-gray-300 p-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <svg class="h-7 w-7 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Mis Comprobantes
-          </h1>
-          <p class="text-gray-600 mt-1">Historial completo de facturas, pagos y movimientos</p>
-        </div>
+  <div class="ui-page space-y-6">
+    <PageHeader
+      title="Mis comprobantes"
+      description="Historial de facturas, pagos y movimientos con filtros para revisar saldos."
+    >
+      <template #actions>
         <button 
           @click="loadComprobantes"
           :disabled="loading"
-          class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
+          class="ui-button ui-button-primary px-4 py-2.5 text-sm disabled:opacity-50"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" :class="{ 'animate-spin': loading }">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           {{ loading ? 'Actualizando...' : 'Actualizar' }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Filtros -->
-    <div class="bg-white rounded-2xl shadow-lg border border-gray-300 p-6">
+    <div class="ui-panel p-5">
       <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z" />
@@ -90,7 +83,7 @@
     </div>
 
     <!-- Resumen -->
-    <div v-if="!loading && comprobantes.length > 0" class="bg-white rounded-2xl shadow-lg border border-gray-300 p-6">
+    <div v-if="!loading && comprobantes.length > 0" class="ui-panel p-5">
       <h3 class="text-lg font-semibold text-gray-900 mb-4">Resumen de Resultados</h3>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div class="bg-blue-50 p-3 rounded-lg">
@@ -113,12 +106,7 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="bg-white rounded-2xl shadow-lg border border-gray-300 p-12">
-      <div class="flex items-center justify-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-        <span class="ml-3 text-gray-500">Cargando comprobantes...</span>
-      </div>
-    </div>
+    <LoadingState v-if="loading" label="Cargando comprobantes..." />
 
     <!-- Error State -->
     <div v-else-if="error" class="bg-white rounded-2xl shadow-lg border border-red-300 p-6">
@@ -134,7 +122,7 @@
     </div>
 
     <!-- Tabla de Comprobantes -->
-    <div v-else-if="comprobantes.length > 0" class="bg-white rounded-2xl shadow-lg border border-gray-300 overflow-hidden">
+    <div v-else-if="comprobantes.length > 0" class="ui-panel overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">
           Comprobantes (Página {{ paginacion.current_page }} de {{ paginacion.total_pages }})
@@ -143,7 +131,7 @@
       
       <!-- Tabla Responsive -->
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="ui-table">
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comprobante</th>
@@ -322,6 +310,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { getComprobantesCliente } from '@/services/dashboard'
 import DetalleComprobanteModal from '@/components/DetalleComprobanteModal.vue'
+import LoadingState from '@/components/ui/LoadingState.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 
 // Estados
 const comprobantes = ref([])

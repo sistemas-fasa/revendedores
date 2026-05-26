@@ -1,5 +1,19 @@
 <template>
-  <div class="w-full space-y-6">
+  <div class="ui-page space-y-6">
+    <PageHeader
+      :title="`Hola, ${fullName}`"
+      description="Resumen de cuenta y accesos rápidos para armar pedidos, revisar comprobantes y repetir compras."
+    >
+      <template #actions>
+        <ActionButton to="/productos">
+          Comprar productos
+        </ActionButton>
+        <ActionButton to="/pedidos" variant="secondary">
+          Mis pedidos
+        </ActionButton>
+      </template>
+    </PageHeader>
+
     <!-- Alerta de Facturas Vencidas/Por Vencer -->
     <transition name="slide-fade">
       <div v-if="!kpisLoading && !kpisError && (kpis.deuda_vencida > 0 || kpis.deuda_por_vencer > 0)" class="space-y-3">
@@ -295,6 +309,8 @@ import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { getDashboardKpis } from '../services/dashboard'
 import ComprasPagosChart from '../components/ComprasPagosChart.vue'
+import ActionButton from '@/components/ui/ActionButton.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 
 const authStore = useAuthStore()
 

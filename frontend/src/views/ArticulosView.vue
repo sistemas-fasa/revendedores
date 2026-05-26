@@ -6,6 +6,10 @@ import * as XLSX from 'xlsx'
 
 import { cart } from '@/services/cart';
 import FloatingCartButton from '@/components/FloatingCartButton.vue';
+import ActionButton from '@/components/ui/ActionButton.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import LoadingState from '@/components/ui/LoadingState.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 
 // Estado del modal de imagen
 const showImageModal = ref(false)
@@ -813,20 +817,32 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50 overflow-hidden">
-    <main class="flex-1 overflow-y-auto p-6 bg-gray-50 main-content">
-      <div class="w-full">
+  <div class="ui-page">
+    <main class="main-content">
+      <div class="space-y-6">
 
-        <h1 class="text-2xl font-bold mb-6 text-gray-900">Gestión de Artículos</h1>
+        <PageHeader
+          title="Productos"
+          description="Buscá por clave o nombre, elegí condición y agregá artículos al carrito sin salir del catálogo."
+        >
+          <template #actions>
+            <ActionButton to="/carrito" variant="secondary">
+              Carrito ({{ cart.totalItems }})
+            </ActionButton>
+            <ActionButton type="button" @click="exportToExcel">
+              Exportar
+            </ActionButton>
+          </template>
+        </PageHeader>
 
         <!-- Barra de búsqueda -->
-        <div class="mb-6 relative">
-          <div class="flex flex-col sm:flex-row gap-3">
-            <div class="flex-grow relative">
+        <div class="ui-panel relative p-4 sm:p-5">
+          <div class="flex flex-col gap-3 lg:flex-row">
+            <div class="relative flex-grow">
               <input
                 v-model="searchQuery"
-                placeholder="Buscar por clave o nombre..."
-                class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Buscar producto por clave, nombre o descripción..."
+                class="ui-field px-4 py-3 pl-11 text-base"
               />
               <div class="absolute inset-y-0 left-0 flex items-center pl-3">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
@@ -844,18 +860,8 @@ onMounted(() => {
             </div>
 
             <button
-              @click="exportToExcel"
-              class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Exportar
-            </button>
-
-            <button
               @click="clearSearch"
-              class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+              class="ui-button ui-button-secondary px-5 py-3 text-sm"
             >
               Limpiar
             </button>
@@ -864,13 +870,13 @@ onMounted(() => {
           <!-- Autocompletado -->
           <ul
             v-if="showSuggestions && suggestions.length > 0"
-            class="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+            class="absolute z-50 mt-2 w-full max-h-72 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
           >
             <li
               v-for="sug in suggestions"
               :key="sug.clave"
               @click="selectSuggestion(sug)"
-              class="px-4 py-2 hover:bg-red-100 cursor-pointer border-b last:border-b-0 text-sm"
+              class="cursor-pointer border-b px-4 py-3 text-sm last:border-b-0 hover:bg-red-50"
             >
               <strong>{{ sug.clave }}</strong> - {{ sug.nombre }}
             </li>
@@ -881,7 +887,7 @@ onMounted(() => {
         <button
           v-if="!isDesktop"
           @click="showMobileFilters = true"
-          class="w-full mb-4 flex items-center justify-between bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm py-3 px-4 font-medium text-gray-700"
+          class="ui-button ui-button-secondary w-full justify-between px-4 py-3"
         >
           <span class="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -896,15 +902,24 @@ onMounted(() => {
         </button>
 
         <!-- Filtros en escritorio (versión compacta) -->
-        <div v-if="isDesktop" class="bg-white p-3 rounded-lg shadow-sm mb-6 border border-gray-200">
-          <h3 class="text-lg font-medium text-gray-900 mb-3">Filtros</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div v-if="isDesktop" class="ui-panel p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-gray-950">Condiciones de venta</h3>
+              <p class="text-sm text-gray-500">Estos valores se guardan para la próxima búsqueda.</p>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs font-bold">
+              <span class="rounded-full bg-red-50 px-3 py-1 text-red-800">{{ modalidad === 'retira' ? 'Retira' : 'Reparto' }}</span>
+              <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">{{ conImpuestos ? 'Con impuestos' : 'Sin impuestos' }}</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <!-- Condición de Pago -->
             <div>
               <label class="block text-xs font-medium text-gray-700 mb-1">Condición de Pago</label>
               <select
                 v-model="condicionPago"
-                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
+                class="ui-field px-3 py-2 text-sm"
                 :disabled="loadingFormasPago"
               >
                 <option v-for="fp in formasPago" :key="fp.id" :value="fp.id">
@@ -921,7 +936,7 @@ onMounted(() => {
               <label class="block text-xs font-medium text-gray-700 mb-1">Modalidad</label>
               <select
                 v-model="modalidad"
-                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
+                class="ui-field px-3 py-2 text-sm"
               >
                 <option value="retira">Retira</option>
                 <option value="reparto">Reparto</option>
@@ -933,7 +948,7 @@ onMounted(() => {
               <label class="block text-xs font-medium text-gray-700 mb-1">Precio</label>
               <select
                 v-model="conImpuestos"
-                class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
+                class="ui-field px-3 py-2 text-sm"
               >
                 <option :value="true">Con impuestos</option>
                 <option :value="false">Sin impuestos</option>
@@ -943,13 +958,13 @@ onMounted(() => {
         </div>
 
         <!-- Mensaje de error -->
-        <div v-if="error" class="p-4 mb-6 bg-red-100 text-red-700 border border-red-300 rounded">
+        <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
           {{ error }}
         </div>
 
-        <div class="mb-6 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div class="ui-panel flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-900">Visualización de productos</p>
+            <p class="text-sm font-bold text-gray-950">Visualización de productos</p>
             <p class="text-sm text-gray-500">
               Mostrando {{ pageStartItem }}-{{ pageEndItem }} de {{ totalItems }} artículos
             </p>
@@ -960,7 +975,7 @@ onMounted(() => {
               <span>Productos por página</span>
               <select
                 :value="pageSize"
-                class="rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                class="ui-field px-3 py-2"
                 @change="updatePageSize($event.target.value)"
               >
                 <option v-for="size in pageSizeOptions" :key="size" :value="size">
@@ -991,9 +1006,7 @@ onMounted(() => {
         </div>
 
         <!-- Cargando -->
-        <div v-if="loading && articulos.length === 0" class="flex justify-center py-8">
-          <p class="text-lg text-gray-600">Cargando artículos...</p>
-        </div>
+        <LoadingState v-if="loading && articulos.length === 0" label="Cargando artículos..." />
 
         <!-- Vista grilla -->
         <div
@@ -1004,7 +1017,7 @@ onMounted(() => {
             v-for="art in articulos"
             :key="art.clave"
             :class="[
-              'rounded-lg shadow flex flex-col overflow-hidden transition transform hover:scale-102 hover:shadow-xl relative',
+              'relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'bg-yellow-50 border border-yellow-300 opacity-95' : '',
               art.oferta === 'S' ? 'bg-green-50 border border-green-300 offer-animate' : '',
               (art.discontinuado !== 'S' && art.oferta !== 'S') ? 'bg-white' : ''
@@ -1031,7 +1044,7 @@ onMounted(() => {
             </div>
 
             <!-- Contenido de la tarjeta -->
-            <div class="p-4 flex-1 flex flex-col">
+              <div class="flex flex-1 flex-col p-4">
               <div class="flex justify-between items-start">
                 <h3
                   class="text-lg font-bold text-gray-900 line-clamp-2 flex-1"
@@ -1093,8 +1106,8 @@ onMounted(() => {
               <div class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
                 <!-- Mostrar precio si está disponible -->
                 <div v-if="art.mostrar_precio && art.precio_lista">
-                    <p class="text-red-500 text-left">Precio</p>
-                    <p class="text-xl font-bold text-red-500 text-left line-clamp-1">$ {{ formatCurrency(art.precio_lista) }}</p>
+                    <p class="text-xs font-bold uppercase text-gray-500">Precio</p>
+                    <p class="line-clamp-1 text-left text-xl font-black text-red-700">$ {{ formatCurrency(art.precio_lista) }}</p>
                 </div>
                 <!-- Mostrar botón "Ver Precio" si no se muestra el precio -->
                 <div v-else class="flex-1">
@@ -1102,11 +1115,11 @@ onMounted(() => {
                       @click="consultarPrecio(art)"
                       :disabled="art.consultandoPrecio"
                       :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
-                      class="text-white px-3 py-2 rounded-lg transition text-sm flex items-center gap-2"
+                      class="ui-button px-3 py-2 text-sm text-white transition"
                     >
                       <div v-if="art.consultandoPrecio" class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>👁️ Ver Precio</span>
+                      <span v-else>Ver precio</span>
                     </button>
                 </div>
                 
@@ -1114,11 +1127,12 @@ onMounted(() => {
                 <button 
                   v-if="art.mostrar_precio && art.precio_lista"
                   @click="abrirModalCarrito(art)" 
-                  class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+                  class="ui-button ui-button-primary px-4 py-2 text-sm"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
+                    <span>Agregar</span>
                 </button>
               </div>
             </div>
@@ -1231,18 +1245,18 @@ onMounted(() => {
                       @click="consultarPrecio(art)"
                       :disabled="art.consultandoPrecio"
                       :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
-                      class="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-white transition"
+                      class="ui-button w-full px-3 py-2 text-sm text-white"
                     >
                       <div v-if="art.consultandoPrecio" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>👁️ Ver Precio</span>
+                      <span v-else>Ver precio</span>
                     </button>
                   </div>
 
                   <button
                     v-if="art.mostrar_precio && art.precio_lista"
                     @click="abrirModalCarrito(art)"
-                    class="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white transition hover:bg-red-700"
+                    class="ui-button ui-button-primary mt-4 w-full px-4 py-2 text-sm"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1256,9 +1270,17 @@ onMounted(() => {
         </div>
 
         <!-- Sin resultados -->
-        <div v-else-if="!loading" class="text-center py-10 text-gray-500">
-          <p>No se encontraron artículos.</p>
-        </div>
+        <EmptyState
+          v-else-if="!loading"
+          title="No se encontraron artículos"
+          description="Probá con otra clave, limpiá la búsqueda o revisá los filtros activos."
+        >
+          <template #actions>
+            <ActionButton type="button" variant="secondary" @click="clearSearch">
+              Limpiar búsqueda
+            </ActionButton>
+          </template>
+        </EmptyState>
 
         <!-- Paginación -->
         <div v-if="!loading && totalPages > 1" class="mt-6 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
@@ -1361,7 +1383,7 @@ onMounted(() => {
         <div class="p-4 border-t bg-gray-50">
           <button
             @click="applyFilters"
-            class="w-full py-2 bg-red-600 text-white font-medium rounded hover:bg-red-700 transition"
+            class="ui-button ui-button-primary w-full px-4 py-2 text-sm"
           >
             Aplicar filtros
           </button>
@@ -1588,7 +1610,7 @@ onMounted(() => {
           <button 
             @click="agregarAlCarrito" 
             :disabled="!modalCarrito.cantidad || modalCarrito.cantidad <= 0"
-            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+            class="ui-button ui-button-primary flex-1 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             Agregar
           </button>

@@ -1,122 +1,143 @@
 <script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import SidebarLink from './SidebarLink.vue'
-import { useAuthStore } from '@/stores/auth' // ✅ Importa el store
-import { computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   isSidebarOpen: { type: Boolean, required: true }
 })
 
-// ✅ Obténgo el store
+const emit = defineEmits(['toggle'])
 const authStore = useAuthStore()
 
-// ✅ Computed: ¿es staff?
 const isStaff = computed(() => {
   return authStore.isAuthenticated && authStore.user && authStore.user.is_staff
 })
 
-const emit = defineEmits(['toggle'])
-
-// Lista de ítems del menú con clases de Font Awesome
-const menuItems = computed(() => {
+const shoppingItems = computed(() => {
   const discontinuedBadge = Number(authStore.discontinuedCount || 0)
   const offersBadge = Number(authStore.offersCount || 0)
-  const items = [
-    { to: '/dashboard', icon: 'fa-home', label: 'Dashboard' },
-    { to: '/profile', icon: 'fa-user', label: 'Perfil' },
+
+  return [
+    { to: '/dashboard', icon: 'fa-home', label: 'Inicio' },
     { to: '/productos', icon: 'fa-box', label: 'Productos' },
-    { to: '/productos?discontinuados=1', icon: 'fa-ban', label: 'Discontinuados', badgeCount: discontinuedBadge },
     { to: '/productos?oferta=1', icon: 'fa-tag', label: 'Ofertas', badgeCount: offersBadge },
+    { to: '/productos?discontinuados=1', icon: 'fa-ban', label: 'Discontinuados', badgeCount: discontinuedBadge },
     { to: '/pedidos', icon: 'fa-clipboard-list', label: 'Mis Pedidos' },
-    { to: '/comprobantes', icon: 'fa-file-invoice', label: 'Comprobantes' },
   ]
-
-  if (isStaff.value) {
-    items.push({
-      to: '/staff-dashboard',
-      icon: 'fa-chart-line', // ícono de gráfico
-      label: 'Panel de Staff',
-      class: 'text-red-600 font-medium' // opcional: estilo especial
-    })
-    items.push({
-      to: '/staff-carritos',
-      icon: 'fa-shopping-cart', // ícono de carrito
-      label: 'Carritos de Clientes',
-      class: 'text-red-600 font-medium' // opcional: estilo especial
-    })
-    // Nuevo menú de Tracking (solo staff)
-    items.push({
-      to: '/staff/tracking',
-      icon: 'fa-bullseye',
-      label: 'Tracking (Campañas)',
-      class: 'text-red-600 font-medium'
-    })
-    items.push({
-      to: '/bot-test',
-      icon: 'fa-comments',
-      label: 'Bot de Prueba',
-      class: 'text-red-600 font-medium'
-    })
-    items.push({
-      to: '/staff/bot-report',
-      icon: 'fa-clipboard-check',
-      label: 'Reporte Bot',
-      class: 'text-red-600 font-medium'
-    })
-  }
-
-  return items
 })
 
-const isMobile = computed(() => window.innerWidth < 768)
+const accountItems = [
+  { to: '/comprobantes', icon: 'fa-file-invoice', label: 'Comprobantes' },
+  { to: '/profile', icon: 'fa-user', label: 'Perfil' },
+]
+
+const staffItems = computed(() => {
+  if (!isStaff.value) return []
+
+  return [
+    { to: '/staff-dashboard', icon: 'fa-chart-line', label: 'Panel de Staff' },
+    { to: '/staff-carritos', icon: 'fa-shopping-cart', label: 'Carritos de Clientes' },
+    { to: '/staff/tracking', icon: 'fa-bullseye', label: 'Tracking' },
+    { to: '/bot-test', icon: 'fa-comments', label: 'Bot de Prueba' },
+    { to: '/staff/bot-report', icon: 'fa-clipboard-check', label: 'Reporte Bot' },
+  ]
+})
+
+const isMobile = ref(window.innerWidth < 768)
+
+const syncViewport = () => {
+  isMobile.value = window.innerWidth < 768
+}
 
 const handleLinkClick = () => {
   if (isMobile.value && props.isSidebarOpen) {
     emit('toggle')
   }
 }
+
+onMounted(() => {
+  window.addEventListener('resize', syncViewport)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncViewport)
+})
 </script>
 
 <template>
   <aside
     :class="[
-      'fixed md:static inset-y-0 flex flex-col w-64 bg-white shadow-lg transform transition-transform duration-300 z-40',
+      'fixed inset-y-0 z-40 flex w-72 flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-300 md:static md:w-64 md:shadow-none',
       isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
     ]"
   >
-    <!-- Logo -->
-    <div class="flex items-center justify-center h-16 border-b px-6">
-      <h1 class="text-xl font-bold text-red-600">Revendedores</h1>
+    <div class="flex h-16 items-center border-b px-5">
+      <div>
+        <h1 class="text-lg font-black text-red-700">Revendedores</h1>
+        <p class="text-xs text-gray-500">Comprar, revisar y repetir</p>
+      </div>
     </div>
 
-    <!-- Menú -->
-    <nav class="flex-1 px-4 py-6 space-y-2">
-      <SidebarLink
-        v-for="item in menuItems"
-        :key="item.to"
-        :to="item.to"
-        :icon="item.icon"
-        :label="item.label"
-        :badgeCount="item.badgeCount || 0"
-        @click="handleLinkClick"
-      />
+    <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+      <section>
+        <p class="px-3 text-xs font-bold uppercase text-gray-400">Comprar</p>
+        <div class="mt-2 space-y-1">
+          <SidebarLink
+            v-for="item in shoppingItems"
+            :key="item.to"
+            :to="item.to"
+            :icon="item.icon"
+            :label="item.label"
+            :badgeCount="item.badgeCount || 0"
+            @click="handleLinkClick"
+          />
+        </div>
+      </section>
+
+      <section>
+        <p class="px-3 text-xs font-bold uppercase text-gray-400">Cuenta</p>
+        <div class="mt-2 space-y-1">
+          <SidebarLink
+            v-for="item in accountItems"
+            :key="item.to"
+            :to="item.to"
+            :icon="item.icon"
+            :label="item.label"
+            @click="handleLinkClick"
+          />
+        </div>
+      </section>
+
+      <section v-if="staffItems.length">
+        <p class="px-3 text-xs font-bold uppercase text-gray-400">Staff</p>
+        <div class="mt-2 space-y-1">
+          <SidebarLink
+            v-for="item in staffItems"
+            :key="item.to"
+            :to="item.to"
+            :icon="item.icon"
+            :label="item.label"
+            linkClass="text-red-700"
+            @click="handleLinkClick"
+          />
+        </div>
+      </section>
     </nav>
 
-    <!-- Cerrar en móvil -->
-    <div class="p-4 border-t md:hidden">
+    <div class="border-t p-4 md:hidden">
       <button
         @click="$emit('toggle')"
-        class="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+        class="ui-button ui-button-secondary w-full px-4 py-2 text-sm"
       >
         Cerrar menú
       </button>
     </div>
   </aside>
 
-  <!-- Overlay -->
   <div
     v-if="isSidebarOpen && isMobile"
     @click="$emit('toggle')"
-    class="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+    class="fixed inset-0 z-30 bg-black/40 md:hidden"
   ></div>
 </template>

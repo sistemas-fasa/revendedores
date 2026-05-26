@@ -1,11 +1,17 @@
 <template>
-  <div class="container mx-auto p-6 bg-gray-50 min-h-screen">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-gray-900">Mis Pedidos</h1>
-      <button 
+  <div class="ui-page space-y-6">
+    <PageHeader
+      title="Mis pedidos"
+      description="Seguimiento de pedidos, detalle de productos y acceso rápido para volver a pedir."
+    >
+      <template #actions>
+        <ActionButton to="/productos" variant="secondary">
+          Nuevo pedido
+        </ActionButton>
+        <button
         @click="cargarPedidos" 
         :disabled="loading"
-        class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+        class="ui-button ui-button-primary px-4 py-2.5 text-sm disabled:opacity-50"
       >
         <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -13,10 +19,11 @@
         </svg>
         {{ loading ? 'Cargando...' : 'Actualizar' }}
       </button>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Filtros -->
-    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <div class="ui-panel p-4">
       <div class="flex flex-wrap gap-4 items-center">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Estado:</label>
@@ -48,36 +55,22 @@
     </div>
 
     <!-- Estado de carga -->
-    <div v-if="loading && pedidos.length === 0" class="flex justify-center items-center py-12">
-      <div class="text-center">
-        <svg class="animate-spin mx-auto h-12 w-12 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p class="mt-2 text-gray-600">Cargando pedidos...</p>
-      </div>
-    </div>
+    <LoadingState v-if="loading && pedidos.length === 0" label="Cargando pedidos..." />
 
     <!-- Sin pedidos -->
-    <div v-else-if="!loading && pedidos.length === 0" class="text-center py-12 bg-white rounded-lg shadow-md">
-      <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-        </svg>
-      </div>
-      <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes pedidos aún</h3>
-      <p class="text-gray-600 mb-4">¡Comienza a explorar nuestros productos y realiza tu primer pedido!</p>
-      <router-link 
-        to="/productos" 
-        class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition"
-      >
-        Ver Productos
-      </router-link>
-    </div>
+    <EmptyState
+      v-else-if="!loading && pedidos.length === 0"
+      title="No tenés pedidos todavía"
+      description="Explorá productos y armá tu primer pedido desde el catálogo."
+    >
+      <template #actions>
+        <ActionButton to="/productos">Ver productos</ActionButton>
+      </template>
+    </EmptyState>
 
     <!-- Lista de pedidos -->
     <div v-else class="space-y-4">
-      <div v-for="pedido in pedidos" :key="pedido.id" class="bg-white rounded-lg shadow-md p-6">
+      <div v-for="pedido in pedidos" :key="pedido.id" class="ui-panel p-5">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
           <div class="flex items-center space-x-4 mb-2 lg:mb-0">
             <h3 class="text-lg font-semibold text-gray-900">Pedido #{{ pedido.id }}</h3>
@@ -288,6 +281,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api';
 import { cart } from '../services/cart';
+import ActionButton from '@/components/ui/ActionButton.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
+import LoadingState from '@/components/ui/LoadingState.vue';
+import PageHeader from '@/components/ui/PageHeader.vue';
 
 const router = useRouter();
 const loading = ref(false);
