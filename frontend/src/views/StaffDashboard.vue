@@ -1,27 +1,43 @@
 <template>
-  <div class="p-5 max-w-7xl mx-auto font-sans bg-gray-50 min-h-screen">
+  <div class="min-h-screen bg-gray-50 px-4 py-5 font-sans sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl space-y-5">
     <!-- Encabezado -->
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-4xl font-bold text-red-800">Staff Dashboard</h1>
-      <button
-        @click="reloadData"
-        :disabled="loading"
-        class="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg shadow transition"
-        :class="{ 'animate-spin': loading }"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        {{ loading ? 'Recargando...' : 'Recargar' }}
-      </button>
-      <!-- Mensaje de caché --> 
-      <p v-if="lastUpdated" class="last-updated">
-        Última actualización: {{ lastUpdated }}
-      </p>      
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-red-700">Panel interno</p>
+          <h1 class="mt-1 text-3xl font-bold text-gray-950 sm:text-4xl">Staff Dashboard</h1>
+          <p class="mt-2 max-w-3xl text-sm text-gray-600">
+            Monitoreá actividad, pedidos, clientes y consultas desde una vista ordenada por áreas.
+          </p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
+          <p v-if="lastUpdated" class="last-updated">
+            Última actualización: {{ lastUpdated }}
+          </p>
+          <button
+            @click="reloadData"
+            :disabled="loading"
+            class="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:bg-gray-400"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              :class="{ 'animate-spin': loading }"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {{ loading ? 'Recargando...' : 'Recargar' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Filtro Global por Usuario -->
-    <div class="bg-white p-4 rounded-lg shadow mb-6 border border-gray-200">
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div class="flex flex-col gap-4">
         <div class="flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -38,7 +54,7 @@
                 @input="onUsuarioBusquedaInput"
                 @focus="mostrarSugerenciasUsuarios = listaUsuarios.length > 0"
                 placeholder="Buscar por username, nombre o email..."
-                class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-red-500"
                 autocomplete="off"
               />
               
@@ -86,7 +102,7 @@
             <button 
               v-if="filtroUsuarioGlobal"
               @click="limpiarFiltroUsuario"
-              class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition flex items-center gap-1"
+              class="flex items-center gap-1 rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
               title="Limpiar filtro"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,46 +125,61 @@
     </div>
 
     <!-- Tarjetas de Resumen -->
-    <section class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+    <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <!-- Total de Pedidos -->
-      <div class="bg-white p-6 rounded-lg shadow text-center border border-red-100">
-        <h3 class="text-lg font-medium text-gray-600">Total de Pedidos</h3>
-        <p class="text-3xl font-bold text-red-600">{{ salesSummary.total_orders }}</p>
+      <div class="staff-metric-card">
+        <h3>Total de Pedidos</h3>
+        <p class="text-red-600">{{ salesSummary.total_orders }}</p>
       </div>
 
       <!-- Ventas Totales -->
-      <div class="bg-white p-6 rounded-lg shadow text-center border border-green-100">
-        <h3 class="text-lg font-medium text-gray-600">Ventas Totales</h3>
-        <p class="text-3xl font-bold text-green-600">${{ formatCurrency(salesSummary.total_sales) }}</p>
+      <div class="staff-metric-card">
+        <h3>Ventas Totales</h3>
+        <p class="text-green-600">${{ formatCurrency(salesSummary.total_sales) }}</p>
       </div>
 
       <!-- Ventas Últimos 30 Días -->
-      <div class="bg-white p-6 rounded-lg shadow text-center border border-blue-100">
-        <h3 class="text-lg font-medium text-gray-600">Últimos 30 Días</h3>
-        <p class="text-3xl font-bold text-blue-600">${{ formatCurrency(salesSummary.sales_last_30_days) }}</p>
+      <div class="staff-metric-card">
+        <h3>Últimos 30 Días</h3>
+        <p class="text-blue-600">${{ formatCurrency(salesSummary.sales_last_30_days) }}</p>
       </div>
 
       <!-- Ingresos (Sesiones) -->
       <div 
         @click="mostrarIngresosHoy"
-        class="bg-white p-6 rounded-lg shadow text-center border border-purple-100 cursor-pointer hover:shadow-lg hover:border-purple-300 transition-all"
+        class="staff-metric-card cursor-pointer hover:border-purple-300 hover:shadow-md"
       >
-        <h3 class="text-lg font-medium text-gray-600">Ingresos Hoy</h3>
-        <p class="text-3xl font-bold text-purple-600">{{ sessionMetrics.sessionsToday }}</p>
-        <p class="text-xs text-gray-500 mt-2">Click para ver detalles</p>
+        <h3>Ingresos Hoy</h3>
+        <p class="text-purple-600">{{ sessionMetrics.sessionsToday }}</p>
+        <span class="mt-2 block text-xs text-gray-500">Ver detalle</span>
       </div>
 
       <!-- Tiempo Promedio -->
-      <div class="bg-white p-6 rounded-lg shadow text-center border border-orange-100">
-        <h3 class="text-lg font-medium text-gray-600">Tiempo Promedio</h3>
-        <p class="text-3xl font-bold text-orange-600">{{ sessionMetrics.avgDuration }}</p>
+      <div class="staff-metric-card">
+        <h3>Tiempo Promedio</h3>
+        <p class="text-orange-600">{{ sessionMetrics.avgDuration }}</p>
       </div>
     </section>
 
+    <nav class="staff-tabs" aria-label="Secciones del dashboard staff">
+      <button
+        v-for="tab in staffTabs"
+        :key="tab.id"
+        type="button"
+        class="staff-tab"
+        :class="{ 'staff-tab-active': activeStaffTab === tab.id }"
+        @click="activeStaffTab = tab.id"
+      >
+        <span>{{ tab.label }}</span>
+        <small>{{ tab.description }}</small>
+      </button>
+    </nav>
+
+    <div v-show="activeStaffTab === 'actividad'" class="staff-tab-panel">
     <!-- Resumen: Descargas / Exportaciones por Cliente -->
-    <section class="bg-white border border-yellow-200 rounded-lg p-5 mb-8 shadow-lg">
+    <section class="staff-panel">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-semibold text-yellow-700">Descargas por Cliente</h2>
+        <h2 class="staff-section-title">Descargas por Cliente</h2>
         <div class="flex items-center gap-2">
           <button
             @click="fetchExportsSummary"
@@ -256,9 +287,9 @@
     </section>
 
     <!-- Resumen: Vistas de Ofertas y Discontinuados -->
-    <section class="bg-white border border-green-200 rounded-lg p-5 mb-8 shadow-lg">
+    <section class="staff-panel">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-semibold text-green-700">Vistas de Ofertas y Discontinuados</h2>
+        <h2 class="staff-section-title">Vistas de Ofertas y Discontinuados</h2>
         <div class="flex items-center gap-2">
           <button
             @click="fetchArticulosVistasSummary"
@@ -307,11 +338,14 @@
       </div>
     </section>
 
+    </div>
+
+    <div v-show="activeStaffTab === 'operacion'" class="staff-tab-panel">
     <!-- Sección de Gestión de Pedidos -->
-    <section class="bg-white border border-red-200 rounded-lg p-5 mb-8 shadow-lg">
+    <section class="staff-panel">
       <div class="flex justify-between items-center mb-4">
         <div class="flex items-center gap-3">
-          <h2 class="text-2xl font-semibold text-red-700">Gestión de Pedidos</h2>
+          <h2 class="staff-section-title">Gestión de Pedidos</h2>
           <div v-if="filtroUsuarioGlobal" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
             🔍 Filtrado por: {{ filtroUsuarioGlobal }}
           </div>
@@ -617,9 +651,9 @@
     </section>
 
     <!-- Gestión de Clientes -->
-    <section v-if="mostrarClientes" class="bg-white border border-green-200 rounded-lg p-5 mb-8 shadow-lg">
+    <section v-if="mostrarClientes" class="staff-panel">
       <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-semibold text-green-700">Gestión de Clientes</h2>
+        <h2 class="staff-section-title">Gestión de Clientes</h2>
         <button
           @click="abrirModalNuevoCliente"
           class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"
@@ -857,9 +891,12 @@
       </div>
     </section>
 
+    </div>
+
+    <div v-show="activeStaffTab === 'productos'" class="staff-tab-panel staff-chart-grid">
     <!-- Gráfico: Productos Más Favoritos -->
-    <section class="bg-white border border-red-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-red-700">Productos Más Favoritos</h2>
+    <section class="staff-panel">
+      <h2 class="staff-section-title mb-4">Productos Más Favoritos</h2>
       <div v-if="mostFavoritedProducts.length > 0 && apexChartLoaded">
         <ApexChart
           type="bar"
@@ -877,8 +914,8 @@
     </section>
 
     <!-- Gráfico: Palabras Más Buscadas -->
-    <section class="bg-white border border-red-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-red-700">Palabras Más Buscadas</h2>
+    <section class="staff-panel">
+      <h2 class="staff-section-title mb-4">Palabras Más Buscadas</h2>
       <div v-if="mostSearchedWords.length > 0 && apexChartLoaded">
         <ApexChart
           type="bar"
@@ -896,8 +933,8 @@
     </section>
 
     <!-- Gráfico: Artículos Más Consultados -->
-    <section class="bg-white border border-blue-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-blue-700">Top 10 Artículos Más Consultados</h2>
+    <section class="staff-panel staff-panel-wide">
+      <h2 class="staff-section-title mb-4">Top 10 Artículos Más Consultados</h2>
       <div v-if="articulosMasConsultados.length > 0 && apexChartLoaded">
         <ApexChart
           type="bar"
@@ -935,9 +972,12 @@
       <p v-else class="text-gray-500 italic">No hay datos de consultas de precios disponibles.</p>
     </section>
 
+    </div>
+
+    <div v-show="activeStaffTab === 'metricas'" class="staff-tab-panel staff-chart-grid">
     <!-- Gráfico: Evolución de Ventas -->
-    <section class="bg-white border border-red-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-red-700">Evolución de Ventas (Últimos 30 Días)</h2>
+    <section class="staff-panel staff-panel-wide">
+      <h2 class="staff-section-title mb-4">Evolución de Ventas (Últimos 30 Días)</h2>
       <div v-if="dailySalesData && dailySalesData.labels && dailySalesData.labels.length > 0 && apexChartLoaded">
         <ApexChart
           type="line"
@@ -954,8 +994,8 @@
       <p v-else class="text-gray-500 italic">No hay datos de ventas diarias disponibles.</p>
     </section>
     <!-- Gráfico: Sesiones por Hora -->
-    <section class="bg-white border border-purple-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-purple-700">Sesiones por Hora</h2>
+    <section class="staff-panel">
+      <h2 class="staff-section-title mb-4">Sesiones por Hora</h2>
       <div v-if="sessionsByHour.labels.length > 0 && apexChartLoaded">
         <ApexChart
           type="area"
@@ -973,8 +1013,8 @@
     </section>
 
     <!-- Gráfico: Ingresos por Dispositivo -->
-    <section class="bg-white border border-indigo-200 rounded-lg p-5 mb-8 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-4 text-indigo-700">Ingresos por Dispositivo (User-Agent)</h2>
+    <section class="staff-panel">
+      <h2 class="staff-section-title mb-4">Ingresos por Dispositivo (User-Agent)</h2>
       <div v-if="(ingresosDispositivoSeries[0]?.data || []).length > 0 && apexChartLoaded">
         <ApexChart
           type="donut"
@@ -996,6 +1036,8 @@
         </div>
       </div>
     </section>
+    </div>
+    </div>
   </div>
 
   <!-- Modal de Edición de Pedido -->
@@ -1390,6 +1432,29 @@ export default {
       loading: false,
       lastUpdated: null,
       updateInterval: null,
+      activeStaffTab: 'actividad',
+      staffTabs: [
+        {
+          id: 'actividad',
+          label: 'Actividad',
+          description: 'Descargas y vistas'
+        },
+        {
+          id: 'operacion',
+          label: 'Operación',
+          description: 'Pedidos y clientes'
+        },
+        {
+          id: 'productos',
+          label: 'Productos',
+          description: 'Favoritos y búsquedas'
+        },
+        {
+          id: 'metricas',
+          label: 'Métricas',
+          description: 'Ventas y sesiones'
+        }
+      ],
       
       // Gestión de Pedidos
       mostrarPedidos: false,
@@ -3442,8 +3507,107 @@ export default {
     font-size: 0.75rem;
     color: #6b7280;
     background: #f3f4f6;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
     display: inline-block;
   }
-</style> 
+  .staff-metric-card {
+    min-height: 112px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .staff-metric-card h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0;
+  }
+  .staff-metric-card p {
+    margin-top: 0.55rem;
+    font-size: 1.7rem;
+    line-height: 2rem;
+    font-weight: 800;
+  }
+  .staff-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 0.5rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  }
+  .staff-tab {
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: left;
+    color: #475569;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+  .staff-tab span {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 800;
+  }
+  .staff-tab small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+  .staff-tab:hover {
+    background: #f8fafc;
+  }
+  .staff-tab-active {
+    background: #b91c1c;
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(185, 28, 28, 0.16);
+  }
+  .staff-tab-active small {
+    color: #fee2e2;
+  }
+  .staff-tab-panel {
+    display: grid;
+    gap: 1rem;
+  }
+  .staff-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .staff-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  }
+  .staff-section-title {
+    font-size: 1.1rem;
+    line-height: 1.5rem;
+    font-weight: 800;
+    color: #111827;
+  }
+  @media (min-width: 768px) {
+    .staff-tabs {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .staff-panel {
+      padding: 1.25rem;
+    }
+  }
+  @media (min-width: 1180px) {
+    .staff-chart-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .staff-panel-wide {
+      grid-column: span 2 / span 2;
+    }
+  }
+</style>
