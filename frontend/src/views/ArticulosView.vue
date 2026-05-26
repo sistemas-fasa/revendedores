@@ -873,40 +873,73 @@ onMounted(() => {
         </PageHeader>
 
         <!-- Barra de búsqueda -->
-        <div class="relative rounded-lg border border-red-100 bg-white px-4 py-5 shadow-sm sm:px-6">
-          <div class="mx-auto mb-4 max-w-5xl text-center">
-            <p class="text-xs font-bold uppercase text-red-700">Búsqueda principal</p>
-            <p class="mt-1 text-sm text-gray-600">Usá el lector, la clave interna o parte del nombre del producto.</p>
+        <div class="relative overflow-hidden rounded-lg border border-red-200 bg-white shadow-md">
+          <div class="border-b border-red-100 bg-red-50 px-5 py-4 sm:px-6">
+            <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p class="text-xs font-black uppercase text-red-700">Búsqueda principal</p>
+                <h2 class="mt-1 text-2xl font-black text-gray-950">Encontrar artículo y vender</h2>
+                <p class="mt-1 text-sm text-gray-600">Clave interna, nombre, descripción o lectura rápida del código.</p>
+              </div>
+              <div class="flex flex-wrap gap-2 text-xs font-bold">
+                <RouterLink
+                  to="/productos?oferta=1"
+                  class="rounded-full border border-green-200 bg-white px-3 py-2 text-green-800 shadow-sm hover:bg-green-50"
+                >
+                  Ofertas
+                </RouterLink>
+                <RouterLink
+                  to="/productos?discontinuados=1"
+                  class="rounded-full border border-yellow-200 bg-white px-3 py-2 text-yellow-800 shadow-sm hover:bg-yellow-50"
+                >
+                  Discontinuados
+                </RouterLink>
+                <button
+                  type="button"
+                  class="rounded-full border border-gray-200 bg-white px-3 py-2 text-gray-700 shadow-sm hover:bg-gray-50"
+                  @click="clearSearch"
+                >
+                  Ver todos
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="mx-auto flex max-w-5xl flex-col gap-3 lg:flex-row">
-            <div class="relative flex-grow">
+          <div class="px-5 py-5 sm:px-6">
+          <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row">
+            <div class="relative flex-grow rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
+              <div class="absolute inset-y-0 left-0 flex items-center pl-4">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
               <input
                 ref="searchInputRef"
                 v-model="searchQuery"
                 placeholder="Buscar por clave, nombre o descripción..."
-                class="ui-field h-16 border-2 border-gray-300 px-5 py-4 pl-14 text-xl font-bold shadow-sm focus:border-red-600 focus:shadow-md"
+                class="h-20 w-full rounded-lg border-0 bg-transparent px-5 py-4 pl-20 text-2xl font-black text-gray-950 placeholder:text-gray-400 focus:outline-none"
               />
-              <div class="absolute inset-y-0 left-0 flex items-center pl-3">
+              <div class="absolute inset-y-0 right-0 flex items-center pr-4">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 </div>
-                <span v-else class="text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                <span v-else-if="searchTerm" class="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+                  buscando
                 </span>
               </div>
             </div>
 
             <button
               @click="clearSearch"
-              class="ui-button ui-button-secondary h-16 px-6 text-sm"
+              class="ui-button h-20 border border-red-200 bg-white px-7 text-sm font-black text-red-700 shadow-sm hover:bg-red-50"
             >
               Limpiar
             </button>
+          </div>
           </div>
 
           <!-- Autocompletado -->
