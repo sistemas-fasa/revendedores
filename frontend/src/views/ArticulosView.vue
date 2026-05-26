@@ -43,6 +43,7 @@ const articulos = ref([])
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
+const searchInputRef = ref(null)
 
 // Autocompletado
 const showSuggestions = ref(false)
@@ -249,6 +250,11 @@ const saveFilters = () => {
 const setViewMode = (mode) => {
   viewMode.value = mode === 'list' ? 'list' : 'grid'
   localStorage.setItem('articulos_view_mode', viewMode.value)
+}
+
+const focusSearchInput = () => {
+  if (!searchInputRef.value) return
+  searchInputRef.value.focus({ preventScroll: true })
 }
 
 const updatePageSize = (value) => {
@@ -813,6 +819,8 @@ onMounted(() => {
   if (route.query.oferta) {
     trackArticuloView('oferta')
   }
+
+  window.setTimeout(focusSearchInput, 150)
 })
 </script>
 
@@ -822,8 +830,8 @@ onMounted(() => {
       <div class="space-y-6">
 
         <PageHeader
-          title="Productos"
-          description="Buscá por clave o nombre, elegí condición y agregá artículos al carrito sin salir del catálogo."
+          title="Buscar artículos"
+          description="Escribí una clave, nombre o descripción para armar el pedido desde el catálogo."
         >
           <template #actions>
             <ActionButton to="/carrito" variant="secondary">
@@ -836,13 +844,18 @@ onMounted(() => {
         </PageHeader>
 
         <!-- Barra de búsqueda -->
-        <div class="ui-panel relative p-4 sm:p-5">
+        <div class="relative rounded-lg border border-red-100 bg-white p-4 shadow-sm sm:p-5">
+          <div class="mb-3 flex flex-col gap-1">
+            <p class="text-xs font-bold uppercase text-red-700">Búsqueda principal</p>
+            <p class="text-sm text-gray-600">Usá el lector, la clave interna o parte del nombre del producto.</p>
+          </div>
           <div class="flex flex-col gap-3 lg:flex-row">
             <div class="relative flex-grow">
               <input
+                ref="searchInputRef"
                 v-model="searchQuery"
-                placeholder="Buscar producto por clave, nombre o descripción..."
-                class="ui-field px-4 py-3 pl-11 text-base"
+                placeholder="Buscar por clave, nombre o descripción..."
+                class="ui-field px-4 py-4 pl-12 text-lg font-semibold"
               />
               <div class="absolute inset-y-0 left-0 flex items-center pl-3">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
@@ -861,7 +874,7 @@ onMounted(() => {
 
             <button
               @click="clearSearch"
-              class="ui-button ui-button-secondary px-5 py-3 text-sm"
+              class="ui-button ui-button-secondary px-5 py-4 text-sm"
             >
               Limpiar
             </button>

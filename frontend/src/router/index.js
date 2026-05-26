@@ -81,7 +81,7 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/productos'
   }
 ]
 
@@ -99,9 +99,9 @@ router.beforeEach((to, from, next) => {
   } else if (to.meta.requiresStaff && (!authStore.isAuthenticated || !authStore.user || !authStore.user.is_staff)) {
     // If route requires staff and user is not authenticated or not staff
     Swal.fire({ icon: 'error', title: 'Acceso denegado', text: 'Solo el personal autorizado puede acceder a esta área.' })
-    next('/dashboard'); // Redirect to a different page, e.g., dashboard or home
+    next('/productos'); // Redirect to the main buying surface
   } else if (to.name === 'login' && authStore.isAuthenticated) {
-    next('/dashboard')
+    next('/productos')
   } else {
     next()
   }

@@ -80,7 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Emitir evento global para notificar que el usuario inició sesión
       try { window.dispatchEvent(new Event('user-logged-in')) } catch (e) { /* ignore */ }
 
-      router.push('/dashboard')
+      router.push('/productos')
     } catch (error) {
       throw error
     } finally {

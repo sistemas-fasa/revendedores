@@ -19,8 +19,7 @@ const shoppingItems = computed(() => {
   const offersBadge = Number(authStore.offersCount || 0)
 
   return [
-    { to: '/dashboard', icon: 'fa-home', label: 'Inicio' },
-    { to: '/productos', icon: 'fa-box', label: 'Productos' },
+    { to: '/productos', icon: 'fa-search', label: 'Buscar artículos' },
     { to: '/productos?oferta=1', icon: 'fa-tag', label: 'Ofertas', badgeCount: offersBadge },
     { to: '/productos?discontinuados=1', icon: 'fa-ban', label: 'Discontinuados', badgeCount: discontinuedBadge },
     { to: '/pedidos', icon: 'fa-clipboard-list', label: 'Mis Pedidos' },
@@ -28,6 +27,7 @@ const shoppingItems = computed(() => {
 })
 
 const accountItems = [
+  { to: '/dashboard', icon: 'fa-chart-pie', label: 'Resumen de cuenta' },
   { to: '/comprobantes', icon: 'fa-file-invoice', label: 'Comprobantes' },
   { to: '/profile', icon: 'fa-user', label: 'Perfil' },
 ]
