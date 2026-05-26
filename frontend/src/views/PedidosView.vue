@@ -1,5 +1,5 @@
 <template>
-  <div class="ui-page space-y-6">
+  <div class="orders-page ui-page space-y-6">
     <PageHeader
       title="Mis pedidos"
       description="Seguimiento de pedidos, detalle de productos y acceso rápido para volver a pedir."
@@ -9,10 +9,10 @@
           Nuevo pedido
         </ActionButton>
         <button
-        @click="cargarPedidos" 
-        :disabled="loading"
-        class="ui-button ui-button-primary px-4 py-2.5 text-sm disabled:opacity-50"
-      >
+          @click="cargarPedidos"
+          :disabled="loading"
+          class="inline-flex items-center justify-center rounded-lg border border-red-700 bg-red-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
         <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -23,14 +23,14 @@
     </PageHeader>
 
     <!-- Filtros -->
-    <div class="ui-panel p-4">
-      <div class="flex flex-wrap gap-4 items-center">
+    <div class="orders-filter-card rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Estado:</label>
-          <select 
-            v-model="filtroEstado" 
+          <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Estado del pedido</label>
+          <select
+            v-model="filtroEstado"
             @change="aplicarFiltros"
-            class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-red-500"
+            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-950 shadow-sm focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100 sm:w-72"
           >
             <option value="">Todos los estados</option>
             <option value="PENDIENTE">Pendiente</option>
@@ -43,13 +43,20 @@
           </select>
         </div>
         
-        <div class="flex-1"></div>
-        
         <!-- Resumen rápido -->
-        <div v-if="resumen" class="flex gap-4 text-sm">
-          <span class="text-gray-600">Total: <strong>{{ resumen.total_pedidos }}</strong></span>
-          <span class="text-yellow-600">Pendientes: <strong>{{ resumen.pedidos_pendientes }}</strong></span>
-          <span class="text-green-600">Confirmados: <strong>{{ resumen.pedidos_confirmados }}</strong></span>
+        <div v-if="resumen" class="grid grid-cols-3 gap-2 text-sm sm:min-w-[460px]">
+          <div class="rounded-lg bg-gray-50 px-3 py-2">
+            <p class="text-xs font-semibold uppercase text-gray-500">Total</p>
+            <p class="text-lg font-black text-gray-950">{{ resumen.total_pedidos }}</p>
+          </div>
+          <div class="rounded-lg bg-amber-50 px-3 py-2">
+            <p class="text-xs font-semibold uppercase text-amber-700">Pendientes</p>
+            <p class="text-lg font-black text-amber-900">{{ resumen.pedidos_pendientes }}</p>
+          </div>
+          <div class="rounded-lg bg-green-50 px-3 py-2">
+            <p class="text-xs font-semibold uppercase text-green-700">Confirmados</p>
+            <p class="text-lg font-black text-green-900">{{ resumen.pedidos_confirmados }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -70,66 +77,75 @@
 
     <!-- Lista de pedidos -->
     <div v-else class="space-y-4">
-      <div v-for="pedido in pedidos" :key="pedido.id" class="ui-panel p-5">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
-          <div class="flex items-center space-x-4 mb-2 lg:mb-0">
-            <h3 class="text-lg font-semibold text-gray-900">Pedido #{{ pedido.id }}</h3>
-            <span :class="getEstadoClasses(pedido.estado)">
-              {{ getEstadoTexto(pedido.estado) }}
-            </span>
+      <div v-for="pedido in pedidos" :key="pedido.id" class="order-card rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0">
+            <div class="mb-2 flex flex-wrap items-center gap-3">
+              <p class="text-xs font-bold uppercase text-red-700">Pedido</p>
+              <span :class="getEstadoClasses(pedido.estado)">
+                {{ getEstadoTexto(pedido.estado) }}
+              </span>
+            </div>
+            <h3 class="text-2xl font-black text-gray-950">#{{ pedido.id }}</h3>
+            <p class="mt-1 text-sm font-semibold text-gray-500">{{ formatDate(pedido.fecha_creacion) }}</p>
           </div>
-          <div class="text-sm text-gray-600">
-            <p>{{ formatDate(pedido.fecha_creacion) }}</p>
-            <p class="font-semibold text-lg text-gray-900">${{ formatCurrency(pedido.total) }}</p>
+          <div class="rounded-lg bg-red-50 px-4 py-3 text-left lg:text-right">
+            <p class="text-xs font-bold uppercase text-red-700">Total pedido</p>
+            <p class="mt-1 text-2xl font-black text-gray-950">${{ formatCurrency(pedido.total) }}</p>
+            <p class="mt-1 text-xs font-semibold text-gray-500">{{ pedido.items.length }} artículo{{ pedido.items.length !== 1 ? 's' : '' }}</p>
           </div>
         </div>
 
         <!-- Items del pedido -->
-        <div class="border-t pt-4">
-          <h4 class="text-sm font-medium text-gray-700 mb-2">
-            Productos ({{ pedido.items.length }} artículos)
-          </h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div v-for="item in pedido.items" :key="item.id" class="flex items-center space-x-3 p-2 bg-gray-50 rounded-md">
-              <div class="flex-shrink-0">
-                <img 
-                  :src="getArticuloImagen(item)" 
-                  :alt="getArticuloNombre(item)"
-                  class="w-10 h-10 object-contain rounded"
-                >
+        <div class="mt-5 border-t border-gray-200 pt-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h4 class="text-sm font-bold uppercase text-gray-500">
+              Productos incluidos
+            </h4>
+            <p class="text-sm font-semibold text-gray-500">{{ getTotalCantidad(pedido.items) }} unidades</p>
+          </div>
+          <div class="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
+            <div v-for="item in previewItems(pedido.items)" :key="item.id" class="order-item flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <img
+                :src="getArticuloImagen(item)"
+                :alt="getArticuloNombre(item)"
+                class="h-12 w-12 rounded-lg border border-gray-200 bg-white object-contain"
+              >
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-bold text-gray-950">{{ getArticuloNombre(item) }}</p>
+                <p class="mt-1 text-xs font-semibold text-gray-500">{{ item.cantidad }} x ${{ formatCurrency(item.precio_unitario) }}</p>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">{{ getArticuloNombre(item) }}</p>
-                <p class="text-xs text-gray-500">{{ item.cantidad }} × ${{ formatCurrency(item.precio_unitario) }}</p>
-              </div>
-              <div class="text-sm font-medium text-gray-900">
+              <div class="text-right text-sm font-black text-gray-950">
                 ${{ formatCurrency(item.subtotal) }}
               </div>
+            </div>
+            <div v-if="pedido.items.length > 6" class="flex items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm font-bold text-gray-500">
+              +{{ pedido.items.length - 6 }} productos más
             </div>
           </div>
         </div>
 
         <!-- Acciones -->
-        <div class="flex justify-end space-x-2 mt-4 pt-4 border-t">
-          <button 
+        <div class="mt-5 flex flex-col gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
+          <button
             @click="verDetalle(pedido)"
-            class="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition"
+            class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-800 shadow-sm transition hover:bg-gray-100"
           >
-            Ver Detalle
+            Ver detalle
           </button>
-          <button 
+          <button
             v-if="pedido.estado === 'PENDIENTE'"
             @click="cancelarPedido(pedido.id)"
-            class="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition"
+            class="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-100"
           >
             Cancelar
           </button>
-          <button 
-            v-if="['CONFIRMADO', 'EN_PROCESO'].includes(pedido.estado)"
+          <button
+            v-if="canReorder(pedido)"
             @click="reordenar(pedido)"
-            class="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700 transition"
+            class="inline-flex items-center justify-center rounded-lg border border-red-700 bg-red-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-900/20 transition hover:bg-red-800"
           >
-            Volver a Pedir
+            Repetir pedido
           </button>
         </div>
       </div>
@@ -146,14 +162,18 @@
     </div>
 
     <!-- Modal de Detalle del Pedido -->
-    <div v-if="modalDetalle.show" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click="cerrarModal">
-      <div class="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white" @click.stop>
+    <div v-if="modalDetalle.show" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-4" @click="cerrarModal">
+      <div class="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl" @click.stop>
         <!-- Header del Modal -->
-        <div class="flex items-center justify-between pb-3 border-b">
-          <h3 class="text-lg font-semibold text-gray-900">
-            Detalle del Pedido #{{ modalDetalle.pedido?.id }}
-          </h3>
-          <button @click="cerrarModal" class="text-gray-400 hover:text-gray-600">
+        <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 sm:px-6">
+          <div>
+            <p class="text-xs font-bold uppercase text-red-700">Detalle de pedido</p>
+            <h3 class="mt-1 text-2xl font-black text-gray-950">
+              Pedido #{{ modalDetalle.pedido?.id }}
+            </h3>
+            <p v-if="modalDetalle.pedido" class="mt-1 text-sm font-semibold text-gray-500">{{ formatDate(modalDetalle.pedido.fecha_creacion) }}</p>
+          </div>
+          <button @click="cerrarModal" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" aria-label="Cerrar detalle">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -161,91 +181,65 @@
         </div>
 
         <!-- Contenido del Modal -->
-        <div v-if="modalDetalle.pedido" class="mt-4">
+        <div v-if="modalDetalle.pedido" class="max-h-[calc(92vh-82px)] overflow-y-auto px-5 py-5 sm:px-6">
           <!-- Información General -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-gray-900 mb-3">Información del Pedido</h4>
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">ID:</span>
-                  <span class="font-medium">#{{ modalDetalle.pedido.id }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Estado:</span>
-                  <span :class="getEstadoClasses(modalDetalle.pedido.estado)">
-                    {{ getEstadoTexto(modalDetalle.pedido.estado) }}
-                  </span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Fecha:</span>
-                  <span class="font-medium">{{ formatDate(modalDetalle.pedido.fecha_creacion) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Total:</span>
-                  <span class="font-bold text-lg text-green-600">${{ formatCurrency(modalDetalle.pedido.total) }}</span>
-                </div>
+          <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="rounded-lg border border-red-100 bg-red-50 p-4">
+              <p class="text-xs font-bold uppercase text-red-700">Total</p>
+              <p class="mt-1 text-3xl font-black text-gray-950">${{ formatCurrency(modalDetalle.pedido.total) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p class="text-xs font-bold uppercase text-gray-500">Estado</p>
+              <div class="mt-2">
+                <span :class="getEstadoClasses(modalDetalle.pedido.estado)">
+                  {{ getEstadoTexto(modalDetalle.pedido.estado) }}
+                </span>
               </div>
             </div>
-
-            <div class="bg-blue-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-gray-900 mb-3">Resumen</h4>
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Artículos:</span>
-                  <span class="font-medium">{{ modalDetalle.pedido.items?.length || 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Cantidad Total:</span>
-                  <span class="font-medium">{{ getTotalCantidad(modalDetalle.pedido.items) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Usuario:</span>
-                  <span class="font-medium">{{ modalDetalle.pedido.usuario_nombre || modalDetalle.pedido.user }}</span>
-                </div>
-              </div>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p class="text-xs font-bold uppercase text-gray-500">Resumen</p>
+              <p class="mt-1 text-lg font-black text-gray-950">{{ modalDetalle.pedido.items?.length || 0 }} artículos</p>
+              <p class="text-sm font-semibold text-gray-500">{{ getTotalCantidad(modalDetalle.pedido.items) }} unidades</p>
             </div>
           </div>
 
           <!-- Lista Detallada de Productos -->
           <div class="mb-6">
-            <h4 class="font-semibold text-gray-900 mb-3">Productos del Pedido</h4>
-            <div class="overflow-x-auto">
+            <h4 class="mb-3 text-sm font-bold uppercase text-gray-500">Productos del pedido</h4>
+            <div class="overflow-hidden rounded-lg border border-gray-200">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                   <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Unit.</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold uppercase text-gray-500">Producto</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold uppercase text-gray-500">Precio unit.</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold uppercase text-gray-500">Cantidad</th>
+                    <th class="px-4 py-3 text-right text-xs font-bold uppercase text-gray-500">Subtotal</th>
                   </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="divide-y divide-gray-100 bg-white">
                   <tr v-for="item in modalDetalle.pedido.items" :key="item.id">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="flex items-center">
-                        <div class="flex-shrink-0 h-12 w-12">
-                          <img 
-                            class="h-12 w-12 object-contain rounded-md" 
-                            :src="getArticuloImagen(item)" 
-                            :alt="getArticuloNombre(item)"
-                          >
-                        </div>
-                        <div class="ml-4">
-                          <div class="text-sm font-medium text-gray-900">{{ getArticuloNombre(item) }}</div>
-                          <div class="text-sm text-gray-500">
-                            Clave: {{ item.articulo_detalle?.clave || item.articulo || 'N/A' }}
+                    <td class="px-4 py-4">
+                      <div class="flex items-center gap-3">
+                        <img
+                          class="h-12 w-12 rounded-lg border border-gray-200 bg-white object-contain"
+                          :src="getArticuloImagen(item)"
+                          :alt="getArticuloNombre(item)"
+                        >
+                        <div class="min-w-0">
+                          <div class="truncate text-sm font-bold text-gray-950">{{ getArticuloNombre(item) }}</div>
+                          <div class="text-xs font-semibold text-gray-500">
+                            Clave {{ getArticuloClave(item) }}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td class="px-4 py-4 text-right text-sm font-semibold text-gray-900">
                       ${{ formatCurrency(item.precio_unitario) }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td class="px-4 py-4 text-right text-sm font-semibold text-gray-900">
                       {{ item.cantidad }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td class="px-4 py-4 text-right text-sm font-black text-gray-950">
                       ${{ formatCurrency(item.subtotal) }}
                     </td>
                   </tr>
@@ -255,19 +249,19 @@
           </div>
 
           <!-- Acciones del Modal -->
-          <div class="flex justify-end space-x-3 pt-4 border-t">
+          <div class="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
             <button
               @click="cerrarModal"
-              class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition"
+              class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm transition hover:bg-gray-100"
             >
               Cerrar
             </button>
             <button
-              v-if="['CONFIRMADO', 'EN_PROCESO'].includes(modalDetalle.pedido.estado)"
+              v-if="canReorder(modalDetalle.pedido)"
               @click="reordenar(modalDetalle.pedido); cerrarModal()"
-              class="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700 transition"
+              class="inline-flex items-center justify-center rounded-lg border border-red-700 bg-red-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-900/20 transition hover:bg-red-800"
             >
-              Reordenar
+              Repetir pedido
             </button>
           </div>
         </div>
@@ -368,9 +362,23 @@ const getArticuloNombre = (item) => {
   return item.articulo_detalle?.nombre || item.articulo?.nombre || 'Producto sin nombre';
 };
 
+const getArticuloClave = (item) => {
+  if (item.articulo_detalle?.clave) return item.articulo_detalle.clave;
+  if (item.articulo?.clave) return item.articulo.clave;
+  return item.articulo || 'N/A';
+};
+
 const getArticuloImagen = (item) => {
   // Manejar tanto el formato nuevo (articulo_detalle) como el antiguo (articulo)
   return item.articulo_detalle?.imagen || item.articulo?.imagen || '/placeholder.png';
+};
+
+const previewItems = (items = []) => {
+  return items.slice(0, 6);
+};
+
+const canReorder = (pedido) => {
+  return pedido?.items?.length > 0 && pedido.estado !== 'CANCELADO';
 };
 
 const cargarPedidos = async () => {
@@ -467,3 +475,44 @@ onMounted(() => {
   cargarPedidos();
 });
 </script>
+
+<style scoped>
+.orders-page {
+  padding-bottom: 32px;
+}
+
+.orders-filter-card,
+.order-card {
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.07);
+}
+
+.orders-filter-card {
+  border-left: 5px solid #c81e1e;
+}
+
+.order-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.order-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #c81e1e;
+}
+
+.order-card,
+.order-item {
+  transition: box-shadow 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+}
+
+.order-card:hover {
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.1);
+}
+
+.order-item:hover {
+  background: #fff7f7;
+}
+</style>
