@@ -23,53 +23,83 @@
       </template>
     </EmptyState>
 
-    <div v-else class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div v-else class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section class="space-y-4">
-        <div class="ui-table-wrap hidden lg:block">
-          <table class="ui-table">
+        <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-bold uppercase text-red-700">Revisión del pedido</p>
+            <p class="mt-1 text-sm text-gray-600">Ajustá cantidades antes de confirmar. Los cambios se guardan automáticamente.</p>
+          </div>
+          <div class="flex gap-2 text-sm">
+            <span class="rounded-lg bg-gray-100 px-3 py-2 font-bold text-gray-800">{{ cart.totalItems }} artículos</span>
+            <span class="rounded-lg bg-gray-100 px-3 py-2 font-bold text-gray-800">{{ formatWeightDisplay(totalWeight) }} kg</span>
+          </div>
+        </div>
+
+        <div class="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:block">
+          <table class="w-full border-collapse">
             <thead>
-              <tr>
-                <th>Artículo</th>
-                <th>Unidad</th>
-                <th>Precio</th>
-                <th>Cantidad</th>
-                <th>Peso</th>
-                <th>Subtotal</th>
-                <th><span class="sr-only">Acciones</span></th>
+              <tr class="border-b border-gray-200 bg-gray-50 text-left text-xs font-bold uppercase text-gray-500">
+                <th class="px-4 py-3">Artículo</th>
+                <th class="px-4 py-3">Unidad</th>
+                <th class="px-4 py-3 text-right">Precio</th>
+                <th class="px-4 py-3">Cantidad</th>
+                <th class="px-4 py-3 text-right">Peso</th>
+                <th class="px-4 py-3 text-right">Subtotal</th>
+                <th class="px-4 py-3"><span class="sr-only">Acciones</span></th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="item in cart.items" :key="item.articulo.clave">
-                <td>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="item in cart.items" :key="item.articulo.clave" class="align-middle hover:bg-gray-50/70">
+                <td class="px-4 py-4">
                   <div class="flex items-center gap-3">
-                    <img class="h-14 w-14 rounded-lg border border-gray-200 object-contain" :src="item.articulo.imagen || '/placeholder.png'" :alt="item.articulo.nombre">
+                    <img class="h-14 w-14 rounded-lg border border-gray-200 bg-white object-contain" :src="item.articulo.imagen || '/placeholder.png'" :alt="item.articulo.nombre">
                     <div class="min-w-0">
                       <p class="font-semibold text-gray-950">{{ item.articulo.nombre }}</p>
-                      <p class="text-sm text-gray-500">Clave: {{ item.articulo.clave }}</p>
+                      <div class="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-gray-600">
+                        <span class="rounded-md border border-gray-200 bg-white px-2 py-1">Clave {{ item.articulo.clave }}</span>
+                        <span v-if="item.articulo.campoa1" class="rounded-md border border-gray-200 bg-white px-2 py-1">Tipo {{ item.articulo.campoa1 }}</span>
+                      </div>
                     </div>
                   </div>
                 </td>
-                <td class="text-sm font-semibold text-gray-700">{{ item.articulo.unidad || 'UN' }}</td>
-                <td class="text-sm text-gray-900">$ {{ formatCurrency(item.precio_unitario) }}</td>
-                <td>
+                <td class="px-4 py-4 text-sm font-semibold text-gray-700">{{ item.articulo.unidad || 'UN' }}</td>
+                <td class="px-4 py-4 text-right text-sm font-semibold text-gray-900">$ {{ formatCurrency(item.precio_unitario) }}</td>
+                <td class="px-4 py-4">
                   <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 bg-white text-xl font-bold text-gray-700 shadow-sm transition hover:bg-gray-100"
+                      :aria-label="`Restar ${item.articulo.nombre}`"
+                      @click="decrementQuantity(item)"
+                    >
+                      -
+                    </button>
                     <input
                       type="number"
                       :min="getMinQuantity(item)"
                       :step="getStepQuantity(item)"
                       v-model.number="item.cantidad"
                       @change="handleQuantityChange(item)"
-                      class="ui-field w-24 px-3 py-2 text-sm"
+                      class="h-10 w-24 rounded-lg border border-gray-300 bg-white px-3 text-center text-sm font-bold text-gray-950 shadow-sm focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                     >
-                    <span v-if="item.articulo.campoa1?.toLowerCase() === 'a' && item.articulo.mts2 > 0" class="text-xs text-gray-500">
-                      {{ (item.cantidad / item.articulo.mts2).toFixed(0) }} cajas
-                    </span>
+                    <button
+                      type="button"
+                      class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 bg-white text-xl font-bold text-gray-700 shadow-sm transition hover:bg-gray-100"
+                      :aria-label="`Sumar ${item.articulo.nombre}`"
+                      @click="incrementQuantity(item)"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div class="mt-1 min-h-5 text-xs font-semibold text-gray-500">
+                    {{ quantityHelper(item) }}
                   </div>
                 </td>
-                <td class="text-sm text-gray-700">{{ formatWeight(item) }} kg</td>
-                <td class="font-bold text-gray-950">$ {{ formatCurrency(item.subtotal) }}</td>
-                <td class="text-right">
-                  <button @click="cart.remove(item.articulo.clave)" class="text-sm font-semibold text-red-700 hover:text-red-900">
+                <td class="px-4 py-4 text-right text-sm font-semibold text-gray-700">{{ formatWeight(item) }} kg</td>
+                <td class="px-4 py-4 text-right text-lg font-black text-gray-950">$ {{ formatCurrency(item.subtotal) }}</td>
+                <td class="px-4 py-4 text-right">
+                  <button @click="cart.remove(item.articulo.clave)" class="rounded-lg px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 hover:text-red-900">
                     Eliminar
                   </button>
                 </td>
@@ -79,36 +109,63 @@
         </div>
 
         <div class="space-y-3 lg:hidden">
-          <article v-for="item in cart.items" :key="item.articulo.clave" class="ui-panel p-4">
+          <article v-for="item in cart.items" :key="item.articulo.clave" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div class="flex gap-3">
-              <img class="h-16 w-16 rounded-lg border border-gray-200 object-contain" :src="item.articulo.imagen || '/placeholder.png'" :alt="item.articulo.nombre">
+              <img class="h-16 w-16 rounded-lg border border-gray-200 bg-white object-contain" :src="item.articulo.imagen || '/placeholder.png'" :alt="item.articulo.nombre">
               <div class="min-w-0 flex-1">
                 <p class="font-bold text-gray-950">{{ item.articulo.nombre }}</p>
-                <p class="text-sm text-gray-500">Clave: {{ item.articulo.clave }}</p>
+                <div class="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-gray-600">
+                  <span class="rounded-md border border-gray-200 bg-white px-2 py-1">Clave {{ item.articulo.clave }}</span>
+                  <span v-if="item.articulo.campoa1" class="rounded-md border border-gray-200 bg-white px-2 py-1">Tipo {{ item.articulo.campoa1 }}</span>
+                </div>
                 <p class="mt-1 text-sm font-semibold text-gray-700">$ {{ formatCurrency(item.precio_unitario) }} / {{ item.articulo.unidad || 'UN' }}</p>
               </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-2 gap-3">
-              <label class="text-sm">
-                <span class="font-semibold text-gray-700">Cantidad</span>
+            <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p class="mb-2 text-sm font-bold text-gray-700">Cantidad</p>
+              <div class="grid grid-cols-[44px_minmax(0,1fr)_44px] gap-2">
+                <button
+                  type="button"
+                  class="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white text-xl font-bold text-gray-700 shadow-sm"
+                  :aria-label="`Restar ${item.articulo.nombre}`"
+                  @click="decrementQuantity(item)"
+                >
+                  -
+                </button>
                 <input
                   type="number"
                   :min="getMinQuantity(item)"
                   :step="getStepQuantity(item)"
                   v-model.number="item.cantidad"
                   @change="handleQuantityChange(item)"
-                  class="ui-field mt-1 px-3 py-2"
+                  class="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-center text-base font-bold text-gray-950 shadow-sm focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                 >
-              </label>
+                <button
+                  type="button"
+                  class="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white text-xl font-bold text-gray-700 shadow-sm"
+                  :aria-label="`Sumar ${item.articulo.nombre}`"
+                  @click="incrementQuantity(item)"
+                >
+                  +
+                </button>
+              </div>
+              <p class="mt-2 min-h-5 text-xs font-semibold text-gray-500">{{ quantityHelper(item) }}</p>
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 gap-3">
               <div class="rounded-lg bg-gray-50 p-3 text-sm">
                 <p class="font-semibold text-gray-700">Peso</p>
-                <p class="mt-1 text-gray-950">{{ formatWeight(item) }} kg</p>
+                <p class="mt-1 font-bold text-gray-950">{{ formatWeight(item) }} kg</p>
+              </div>
+              <div class="rounded-lg bg-gray-50 p-3 text-sm text-right">
+                <p class="font-semibold text-gray-700">Subtotal</p>
+                <p class="mt-1 text-lg font-black text-gray-950">$ {{ formatCurrency(item.subtotal) }}</p>
               </div>
             </div>
 
             <div class="mt-4 flex items-center justify-between border-t border-gray-200 pt-3">
-              <p class="text-lg font-black text-gray-950">$ {{ formatCurrency(item.subtotal) }}</p>
+              <p class="text-sm font-semibold text-gray-500">{{ item.articulo.unidad || 'UN' }}</p>
               <button @click="cart.remove(item.articulo.clave)" class="text-sm font-semibold text-red-700">
                 Eliminar
               </button>
@@ -206,8 +263,41 @@ const getStepQuantity = (item) => {
   return 1
 }
 
+const quantityHelper = (item) => {
+  const campoa1Lower = (item.articulo.campoa1 || '').toLowerCase()
+  if (campoa1Lower === 'a' && item.articulo.mts2 > 0) {
+    const cajas = Math.ceil(item.cantidad / item.articulo.mts2)
+    return `${cajas} caja${cajas > 1 ? 's' : ''} | ${item.articulo.mts2} m2 por caja`
+  }
+  if (campoa1Lower === 'c') {
+    const pesoUnitario = parseFloat(item.articulo.peso) || 0
+    return `${formatWeightDisplay(pesoUnitario)} kg por unidad`
+  }
+  return ''
+}
+
+const incrementQuantity = (item) => {
+  const step = parseFloat(getStepQuantity(item)) || 1
+  const nextQuantity = (parseFloat(item.cantidad) || 0) + step
+  item.cantidad = nextQuantity
+  handleQuantityChange(item)
+}
+
+const decrementQuantity = (item) => {
+  const step = parseFloat(getStepQuantity(item)) || 1
+  const min = parseFloat(getMinQuantity(item)) || 1
+  const current = parseFloat(item.cantidad) || min
+  item.cantidad = Math.max(min, current - step)
+  handleQuantityChange(item)
+}
+
 const handleQuantityChange = (item) => {
   const campoa1Lower = (item.articulo.campoa1 || '').toLowerCase()
+  const min = parseFloat(getMinQuantity(item)) || 1
+
+  if (!item.cantidad || item.cantidad < min) {
+    item.cantidad = min
+  }
 
   if (campoa1Lower === 'a' && item.articulo.mts2 > 0 && item.cantidad > 0) {
     const mts2 = parseFloat(item.articulo.mts2)
