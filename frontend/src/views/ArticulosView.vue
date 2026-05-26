@@ -670,7 +670,8 @@ const abrirModalCarrito = (articulo) => {
   
   // Si es campoa1='c', inicializar con 1 artículo y su peso correspondiente
   const cantidadInicial = 1
-  const pesoInicial = articulo.campoa1 === 'c' ? (articulo.peso || 0) : 0
+  const campoa1Inicial = (articulo.campoa1 || '').toLowerCase()
+  const pesoInicial = campoa1Inicial === 'c' ? (parseFloat(articulo.peso) || 0) : 0
   
   modalCarrito.value = {
     visible: true,
