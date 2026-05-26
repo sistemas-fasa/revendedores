@@ -306,6 +306,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getDashboardKpis } from '../services/dashboard'
 import ComprasPagosChart from '../components/ComprasPagosChart.vue'
@@ -313,6 +314,7 @@ import ActionButton from '@/components/ui/ActionButton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 // Estados para KPIs
 const kpis = ref({
@@ -387,6 +389,11 @@ const loadKpis = async () => {
 
 // Cargar KPIs al montar el componente
 onMounted(() => {
+  if (window.innerWidth < 768 && !authStore.user?.is_staff) {
+    router.replace('/productos')
+    return
+  }
+
   loadKpis()
 })
 </script>

@@ -874,30 +874,30 @@ onMounted(() => {
         </PageHeader>
 
         <!-- Barra de búsqueda -->
-        <div class="relative overflow-hidden rounded-lg border border-red-200 bg-white shadow-md">
-          <div class="border-b border-red-100 bg-red-50 px-5 py-4 sm:px-6">
+        <div class="mobile-search-card relative rounded-lg border border-red-200 bg-white shadow-md">
+          <div class="border-b border-red-100 bg-red-50 px-4 py-4 sm:px-6">
             <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p class="text-xs font-black uppercase text-red-700">Búsqueda principal</p>
-                <h2 class="mt-1 text-2xl font-black text-gray-950">Encontrar artículo y vender</h2>
-                <p class="mt-1 text-sm text-gray-600">Clave interna, nombre, descripción o lectura rápida del código.</p>
+                <h2 class="mt-1 text-xl font-black text-gray-950 sm:text-2xl">Encontrar artículo y vender</h2>
+                <p class="mt-1 text-sm text-gray-600">Clave, nombre, descripción o código.</p>
               </div>
-              <div class="flex flex-wrap gap-2 text-xs font-bold">
+              <div class="grid grid-cols-3 gap-2 text-xs font-bold sm:flex sm:flex-wrap">
                 <RouterLink
                   to="/productos?oferta=1"
-                  class="rounded-full border border-green-200 bg-white px-3 py-2 text-green-800 shadow-sm hover:bg-green-50"
+                  class="inline-flex items-center justify-center rounded-lg border border-green-200 bg-white px-3 py-2 text-center text-green-800 shadow-sm hover:bg-green-50"
                 >
                   Ofertas
                 </RouterLink>
                 <RouterLink
                   to="/productos?discontinuados=1"
-                  class="rounded-full border border-yellow-200 bg-white px-3 py-2 text-yellow-800 shadow-sm hover:bg-yellow-50"
+                  class="inline-flex items-center justify-center rounded-lg border border-yellow-200 bg-white px-3 py-2 text-center text-yellow-800 shadow-sm hover:bg-yellow-50"
                 >
                   Discontinuados
                 </RouterLink>
                 <button
                   type="button"
-                  class="rounded-full border border-gray-200 bg-white px-3 py-2 text-gray-700 shadow-sm hover:bg-gray-50"
+                  class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-center text-gray-700 shadow-sm hover:bg-gray-50"
                   @click="clearSearch"
                 >
                   Ver todos
@@ -905,11 +905,11 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <div class="px-5 py-5 sm:px-6">
+          <div class="px-4 py-4 sm:px-6">
           <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row">
-            <div class="relative flex-grow rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
-              <div class="absolute inset-y-0 left-0 flex items-center pl-4">
-                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+            <div class="mobile-search-input relative flex-grow rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
+                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm sm:h-10 sm:w-10">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -918,10 +918,10 @@ onMounted(() => {
               <input
                 ref="searchInputRef"
                 v-model="searchQuery"
-                placeholder="Buscar por clave, nombre o descripción..."
-                class="h-20 w-full rounded-lg border-0 bg-transparent px-5 py-4 pl-20 text-2xl font-black text-gray-950 placeholder:text-gray-400 focus:outline-none"
+                placeholder="Clave, nombre o código..."
+                class="h-16 w-full rounded-lg border-0 bg-transparent py-4 pl-16 pr-4 text-lg font-black text-gray-950 placeholder:text-gray-400 focus:outline-none sm:h-20 sm:px-5 sm:pl-20 sm:pr-28 sm:text-2xl"
               />
-              <div class="absolute inset-y-0 right-0 flex items-center pr-4">
+              <div class="pointer-events-none absolute inset-y-0 right-0 hidden items-center pr-4 sm:flex">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -936,7 +936,7 @@ onMounted(() => {
 
             <button
               @click="clearSearch"
-              class="ui-button h-20 border border-red-200 bg-white px-7 text-sm font-black text-red-700 shadow-sm hover:bg-red-50"
+              class="inline-flex h-12 w-full items-center justify-center rounded-lg border border-red-200 bg-white px-7 text-sm font-black text-red-700 shadow-sm hover:bg-red-50 sm:h-20 lg:w-auto"
             >
               Limpiar
             </button>
@@ -963,7 +963,7 @@ onMounted(() => {
         <button
           v-if="!isDesktop"
           @click="showMobileFilters = true"
-          class="ui-button ui-button-secondary w-full justify-between px-4 py-3"
+            class="inline-flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-800 shadow-sm"
         >
           <span class="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1799,6 +1799,23 @@ onMounted(() => {
   border-radius: 6px;
   background: rgba(34,197,94,0.08);
   animation: gentle-pulse 4s ease-in-out infinite;
+}
+
+@media (max-width: 767px) {
+  .main-content > .space-y-6 {
+    gap: 12px;
+  }
+
+  .mobile-search-card {
+    position: sticky;
+    top: 8px;
+    z-index: 20;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+  }
+
+  .mobile-search-input input {
+    min-width: 0;
+  }
 }
 
 /* Para truncar texto largo */
