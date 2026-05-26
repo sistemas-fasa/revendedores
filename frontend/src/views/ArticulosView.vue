@@ -873,18 +873,18 @@ onMounted(() => {
         </PageHeader>
 
         <!-- Barra de búsqueda -->
-        <div class="relative rounded-lg border border-red-100 bg-white p-4 shadow-sm sm:p-5">
-          <div class="mb-3 flex flex-col gap-1">
+        <div class="relative rounded-lg border border-red-100 bg-white px-4 py-5 shadow-sm sm:px-6">
+          <div class="mx-auto mb-4 max-w-5xl text-center">
             <p class="text-xs font-bold uppercase text-red-700">Búsqueda principal</p>
-            <p class="text-sm text-gray-600">Usá el lector, la clave interna o parte del nombre del producto.</p>
+            <p class="mt-1 text-sm text-gray-600">Usá el lector, la clave interna o parte del nombre del producto.</p>
           </div>
-          <div class="flex flex-col gap-3 lg:flex-row">
+          <div class="mx-auto flex max-w-5xl flex-col gap-3 lg:flex-row">
             <div class="relative flex-grow">
               <input
                 ref="searchInputRef"
                 v-model="searchQuery"
                 placeholder="Buscar por clave, nombre o descripción..."
-                class="ui-field px-4 py-4 pl-12 text-lg font-semibold"
+                class="ui-field h-16 border-2 border-gray-300 px-5 py-4 pl-14 text-xl font-bold shadow-sm focus:border-red-600 focus:shadow-md"
               />
               <div class="absolute inset-y-0 left-0 flex items-center pl-3">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
@@ -903,7 +903,7 @@ onMounted(() => {
 
             <button
               @click="clearSearch"
-              class="ui-button ui-button-secondary px-5 py-4 text-sm"
+              class="ui-button ui-button-secondary h-16 px-6 text-sm"
             >
               Limpiar
             </button>
