@@ -96,6 +96,8 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
+  } else if (to.name === 'dashboard' && authStore.isAuthenticated && !authStore.user?.is_staff) {
+    next('/productos')
   } else if (to.meta.requiresStaff && (!authStore.isAuthenticated || !authStore.user || !authStore.user.is_staff)) {
     // If route requires staff and user is not authenticated or not staff
     Swal.fire({ icon: 'error', title: 'Acceso denegado', text: 'Solo el personal autorizado puede acceder a esta área.' })
