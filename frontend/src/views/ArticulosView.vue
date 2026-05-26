@@ -860,6 +860,7 @@ onMounted(() => {
       <div class="space-y-6">
 
         <PageHeader
+          class="products-page-header"
           title="Buscar artículos"
           description="Escribí una clave, nombre o descripción para armar el pedido desde el catálogo."
         >
@@ -875,14 +876,14 @@ onMounted(() => {
 
         <!-- Barra de búsqueda -->
         <div class="mobile-search-card relative rounded-lg border border-red-200 bg-white shadow-md">
-          <div class="border-b border-red-100 bg-red-50 px-4 py-4 sm:px-6">
+          <div class="mobile-search-head border-b border-red-100 bg-red-50 px-4 py-4 sm:px-6">
             <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+              <div class="mobile-search-copy">
                 <p class="text-xs font-black uppercase text-red-700">Búsqueda principal</p>
                 <h2 class="mt-1 text-xl font-black text-gray-950 sm:text-2xl">Encontrar artículo y vender</h2>
                 <p class="mt-1 text-sm text-gray-600">Clave, nombre, descripción o código.</p>
               </div>
-              <div class="grid grid-cols-3 gap-2 text-xs font-bold sm:flex sm:flex-wrap">
+              <div class="mobile-search-chips grid grid-cols-3 gap-2 text-xs font-bold sm:flex sm:flex-wrap">
                 <RouterLink
                   to="/productos?oferta=1"
                   class="inline-flex items-center justify-center rounded-lg border border-green-200 bg-white px-3 py-2 text-center text-green-800 shadow-sm hover:bg-green-50"
@@ -905,7 +906,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <div class="px-4 py-4 sm:px-6">
+          <div class="mobile-search-body px-4 py-4 sm:px-6">
           <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row">
             <div class="mobile-search-input relative flex-grow rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
               <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
@@ -936,7 +937,7 @@ onMounted(() => {
 
             <button
               @click="clearSearch"
-              class="inline-flex h-12 w-full items-center justify-center rounded-lg border border-red-200 bg-white px-7 text-sm font-black text-red-700 shadow-sm hover:bg-red-50 sm:h-20 lg:w-auto"
+              class="mobile-clear-button inline-flex h-12 w-full items-center justify-center rounded-lg border border-red-200 bg-white px-7 text-sm font-black text-red-700 shadow-sm hover:bg-red-50 sm:h-20 lg:w-auto"
             >
               Limpiar
             </button>
@@ -1060,7 +1061,7 @@ onMounted(() => {
           {{ error }}
         </div>
 
-        <div class="ui-panel flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="products-view-toolbar ui-panel flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p class="text-sm font-bold text-gray-950">Visualización de productos</p>
             <p class="text-sm text-gray-500">
@@ -1803,18 +1804,80 @@ onMounted(() => {
 
 @media (max-width: 767px) {
   .main-content > .space-y-6 {
-    gap: 12px;
+    gap: 10px;
+  }
+
+  .products-page-header {
+    display: none;
   }
 
   .mobile-search-card {
-    position: sticky;
-    top: 8px;
-    z-index: 20;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .mobile-search-head {
+    padding: 10px 12px;
+  }
+
+  .mobile-search-copy h2 {
+    display: none;
+  }
+
+  .mobile-search-copy p:last-child {
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .mobile-search-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .mobile-search-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-search-chips > * {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .mobile-search-body {
+    padding: 10px 12px 12px;
   }
 
   .mobile-search-input input {
+    height: 52px;
     min-width: 0;
+    padding-left: 56px;
+    font-size: 18px;
+  }
+
+  .mobile-search-input .h-9 {
+    height: 36px;
+    width: 36px;
+  }
+
+  .mobile-clear-button {
+    height: 42px;
+  }
+
+  .products-view-toolbar {
+    padding: 10px 12px;
+  }
+
+  .products-view-toolbar > div:first-child p:first-child {
+    display: none;
+  }
+
+  .products-view-toolbar > div:last-child {
+    display: none;
   }
 }
 
