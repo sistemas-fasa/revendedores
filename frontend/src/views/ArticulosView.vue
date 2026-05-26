@@ -915,24 +915,24 @@ onMounted(() => {
         </button>
 
         <!-- Filtros en escritorio (versión compacta) -->
-        <div v-if="isDesktop" class="ui-panel p-4">
+        <div v-if="isDesktop" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 class="text-base font-bold text-gray-950">Condiciones de venta</h3>
               <p class="text-sm text-gray-500">Estos valores se guardan para la próxima búsqueda.</p>
             </div>
-            <div class="flex flex-wrap gap-2 text-xs font-bold">
+            <div class="flex flex-wrap gap-2 text-xs font-bold text-gray-700">
               <span class="rounded-full bg-red-50 px-3 py-1 text-red-800">{{ modalidad === 'retira' ? 'Retira' : 'Reparto' }}</span>
-              <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">{{ conImpuestos ? 'Con impuestos' : 'Sin impuestos' }}</span>
+              <span class="rounded-full bg-red-50 px-3 py-1 text-red-800">{{ conImpuestos ? 'Con impuestos' : 'Sin impuestos' }}</span>
             </div>
           </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(280px,1.4fr)_minmax(220px,0.8fr)_minmax(260px,0.9fr)]">
             <!-- Condición de Pago -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Condición de Pago</label>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label class="mb-2 block text-xs font-bold uppercase text-gray-600">Condición de Pago</label>
               <select
                 v-model="condicionPago"
-                class="ui-field px-3 py-2 text-sm"
+                class="ui-field border-gray-300 px-3 py-3 text-sm font-semibold shadow-sm"
                 :disabled="loadingFormasPago"
               >
                 <option v-for="fp in formasPago" :key="fp.id" :value="fp.id">
@@ -945,27 +945,49 @@ onMounted(() => {
             </div>
 
             <!-- Modalidad -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Modalidad</label>
-              <select
-                v-model="modalidad"
-                class="ui-field px-3 py-2 text-sm"
-              >
-                <option value="retira">Retira</option>
-                <option value="reparto">Reparto</option>
-              </select>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label class="mb-2 block text-xs font-bold uppercase text-gray-600">Modalidad</label>
+              <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-2 text-sm font-bold transition"
+                  :class="modalidad === 'retira' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+                  @click="modalidad = 'retira'"
+                >
+                  Retira
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-2 text-sm font-bold transition"
+                  :class="modalidad === 'reparto' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+                  @click="modalidad = 'reparto'"
+                >
+                  Reparto
+                </button>
+              </div>
             </div>
 
             <!-- Precio -->
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">Precio</label>
-              <select
-                v-model="conImpuestos"
-                class="ui-field px-3 py-2 text-sm"
-              >
-                <option :value="true">Con impuestos</option>
-                <option :value="false">Sin impuestos</option>
-              </select>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label class="mb-2 block text-xs font-bold uppercase text-gray-600">Precio</label>
+              <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-2 text-sm font-bold transition"
+                  :class="conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+                  @click="conImpuestos = true"
+                >
+                  Con impuestos
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-2 text-sm font-bold transition"
+                  :class="!conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
+                  @click="conImpuestos = false"
+                >
+                  Sin impuestos
+                </button>
+              </div>
             </div>
           </div>
         </div>
