@@ -1,0 +1,19 @@
+:root {
+  --color-primary: #0ea5a3; /* teal-500 */
+  --color-primary-700: #115e59;
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #0f172a;
+  --radius-md: 8px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0b1220;
+    --color-surface: #0f1724;
+    --color-text: #e6eef8;
+  }
+}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generador de Íconos PWA</title>
+</head>
+<body>
+    <canvas id="canvas64" width="64" height="64" style="border: 1px solid #ccc; margin: 10px;"></canvas>
+    <canvas id="canvas192" width="192" height="192" style="border: 1px solid #ccc; margin: 10px;"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="border: 1px solid #ccc; margin: 10px;"></canvas>
+
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Fondo azul oscuro
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Texto FASA en blanco
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `bold ${size/4}px Arial`;
+            ctx.fillText('FASA', size/2, size/2);
+            
+            // Crear enlace de descarga
+            const link = document.createElement('a');
+            link.download = `pwa-${size}x${size}.png`;
+            link.href = canvas.toDataURL();
+            link.textContent = `Descargar ${size}x${size}`;
+            link.style.display = 'block';
+            link.style.margin = '10px';
+            document.body.appendChild(link);
+        }
+
+        // Crear íconos de diferentes tamaños
+        createIcon('canvas64', 64);
+        createIcon('canvas192', 192);
+        createIcon('canvas512', 512);
+    </script>
+</body>
+</html>

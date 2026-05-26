@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmación de Pedido</title>
+</head>
+<body>
+    <div style="background:#f5f7fb; padding:24px 0; font-family:Arial, Helvetica, sans-serif; color:#111827;">
+        <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 8px 24px rgba(16,24,40,0.08);">
+            <div style="background:#111827; padding:18px 24px; color:#ffffff;">
+                <div style="font-size:18px; font-weight:700;">Ferretería Avenida</div>
+                <div style="font-size:13px; opacity:0.85;">Confirmación de Pedido</div>
+            </div>
+
+            <div style="padding:24px;">
+                <h2 style="margin:0 0 8px; font-size:22px;">¡Gracias por tu pedido, {{ pedido.user.first_name }}!</h2>
+                <p style="margin:0 0 16px; color:#4b5563;">Tu pedido <strong>#{{ pedido.id }}</strong> ha sido confirmado y está siendo procesado.</p>
+
+                <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+                    <div style="font-size:13px; color:#6b7280;">Resumen</div>
+                    <div style="font-size:16px; font-weight:600; margin-top:4px;">Total del pedido: ${{ pedido.total }}</div>
+                </div>
+
+                <h3 style="font-size:16px; margin:0 0 8px;">Detalles del Pedido</h3>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th align="left" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Artículo</th>
+                            <th align="center" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Cantidad</th>
+                            <th align="right" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Precio Unitario</th>
+                            <th align="right" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in pedido.items.all %}
+                        <tr>
+                            <td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">{{ item.articulo.nombre }}</td>
+                            <td align="center" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">{{ item.cantidad }}</td>
+                            <td align="right" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">${{ item.precio_unitario }}</td>
+                            <td align="right" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">${{ item.subtotal }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div style="margin:16px 0; padding:12px 14px; border:2px solid #dc2626; background:#fef2f2; color:#991b1b; border-radius:8px; font-weight:600;">
+                    <strong>Importante:</strong> El precio total es orientativo. El sector de ventas se contactará para confirmar los precios reales con bonificaciones y descuentos por compras en cantidad.
+                </div>
+
+                <p style="margin:0; color:#374151;">Gracias por confiar en nosotros.</p>
+            </div>
+
+            <div style="background:#f9fafb; padding:14px 24px; font-size:12px; color:#6b7280; text-align:center;">
+                Este es un correo automático. Si tenés consultas, respondé a este mensaje o contactanos.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

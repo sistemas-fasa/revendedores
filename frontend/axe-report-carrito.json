@@ -1,0 +1,33 @@
+[
+  {
+    "testEngine": {
+      "name": "axe-core",
+      "version": "4.11.2"
+    },
+    "testRunner": {
+      "name": "axe"
+    },
+    "testEnvironment": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.0.0 Safari/537.36",
+      "windowWidth": 764,
+      "windowHeight": 429,
+      "orientationAngle": 0,
+      "orientationType": "landscape-primary"
+    },
+    "timestamp": "2026-04-08T18:20:44.913Z",
+    "url": "http://localhost:5173/login",
+    "toolOptions": {
+      "runOnly": {
+        "type": "tag",
+        "values": [
+          "wcag2a wcag2aa"
+        ]
+      },
+      "reporter": "v1"
+    },
+    "inapplicable": [],
+    "passes": [],
+    "incomplete": [],
+    "violations": []
+  }
+]
