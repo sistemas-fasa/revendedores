@@ -1577,151 +1577,186 @@ onMounted(() => {
     <FloatingCartButton />
 
     <!-- Modal de Agregar al Carrito -->
-    <div v-if="modalCarrito.visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="cerrarModalCarrito">
-      <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-xl font-bold text-gray-800">Agregar al Carrito</h3>
-          <button @click="cerrarModalCarrito" class="text-gray-400 hover:text-gray-600">
+    <div v-if="modalCarrito.visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-4" @click.self="cerrarModalCarrito">
+      <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 sm:px-6">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-red-700">Venta rápida</p>
+            <h3 class="mt-1 text-xl font-bold text-gray-950 sm:text-2xl">Agregar al carrito</h3>
+            <p class="mt-1 text-sm text-gray-600">Revisá la cantidad antes de confirmar.</p>
+          </div>
+          <button @click="cerrarModalCarrito" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" aria-label="Cerrar modal">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <!-- Información del Artículo -->
-        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
-          <p class="font-semibold text-gray-800">{{ modalCarrito.articulo?.nombre }}</p>
-          <p class="text-sm text-gray-600">Código: {{ modalCarrito.articulo?.clave }}</p>
-          <p class="text-lg font-bold text-red-600 mt-2">${{ formatCurrency(modalCarrito.articulo?.precio_lista) }}</p>
+        <div class="overflow-y-auto px-5 py-5 sm:px-6">
+          <!-- Información del Artículo -->
+          <div class="rounded-lg border border-red-100 bg-red-50/70 p-4">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs font-bold uppercase tracking-wide text-red-700">Producto seleccionado</p>
+                <p class="mt-2 text-lg font-bold leading-snug text-gray-950">{{ modalCarrito.articulo?.nombre }}</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-700">
+                  <span class="rounded-md border border-gray-200 bg-white px-2.5 py-1">Clave {{ modalCarrito.articulo?.clave }}</span>
+                  <span v-if="modalCarrito.tipo" class="rounded-md border border-gray-200 bg-white px-2.5 py-1">Tipo {{ modalCarrito.tipo }}</span>
+                </div>
+              </div>
+              <div class="shrink-0 rounded-lg bg-white px-4 py-3 text-left shadow-sm sm:text-right">
+                <p class="text-xs font-semibold uppercase text-gray-500">Precio lista</p>
+                <p class="mt-1 text-2xl font-black text-red-700">${{ formatCurrency(modalCarrito.articulo?.precio_lista) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Formulario según tipo de artículo -->
+          <div class="mt-5 space-y-4">
+            <!-- campoa1='c' o 'C': Artículos que se venden por peso (pero precio por cantidad) -->
+            <div v-if="modalCarrito.articulo?.campoa1?.toLowerCase() === 'c'" class="rounded-lg border border-gray-200 bg-white p-4">
+              <div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                <p class="text-sm font-semibold text-blue-950">
+                  Peso por artículo: {{ modalCarrito.articulo.peso }} kg
+                </p>
+                <p class="mt-1 text-xs text-blue-800">
+                  Podés ingresar cantidad o peso total; el sistema calcula el otro dato.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-bold text-gray-800">Cantidad de artículos</span>
+                  <input
+                    v-model.number="modalCarrito.cantidad"
+                    type="number"
+                    min="1"
+                    step="1"
+                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    placeholder="Ej: 10"
+                  >
+                </label>
+
+                <label class="block">
+                  <span class="text-sm font-bold text-gray-800">Peso total</span>
+                  <input
+                    v-model.number="modalCarrito.peso"
+                    type="number"
+                    min="0"
+                    :step="modalCarrito.articulo.peso"
+                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    placeholder="Kg"
+                  >
+                </label>
+              </div>
+
+              <p class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <span class="font-semibold">Resumen:</span>
+                <span class="font-bold text-gray-950">{{ modalCarrito.cantidad }} artículo(s)</span>
+                =
+                <span class="font-bold text-gray-950">{{ modalCarrito.peso }} kg</span>
+              </p>
+            </div>
+
+            <!-- Tipo C o M (que NO sean campoa1='c'): Cantidad y Peso -->
+            <div v-else-if="(modalCarrito.tipo === 'C' || modalCarrito.tipo === 'M') && modalCarrito.articulo?.campoa1?.toLowerCase() !== 'c'" class="rounded-lg border border-gray-200 bg-white p-4">
+              <p class="mb-3 text-sm font-semibold text-gray-600">Completá cantidad y peso para calcular el total.</p>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="text-sm font-bold text-gray-800">Cantidad</span>
+                  <input
+                    v-model.number="modalCarrito.cantidad"
+                    type="number"
+                    min="1"
+                    step="1"
+                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    placeholder="Unidades"
+                  >
+                </label>
+
+                <label class="block">
+                  <span class="text-sm font-bold text-gray-800">Peso</span>
+                  <input
+                    v-model.number="modalCarrito.peso"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    placeholder="Kg"
+                  >
+                </label>
+              </div>
+            </div>
+
+            <!-- Tipo A con mts2: Superficie -->
+            <div v-if="modalCarrito.tipo === 'A' && modalCarrito.articulo?.mts2 > 0" class="rounded-lg border border-gray-200 bg-white p-4">
+              <label class="block">
+                <span class="text-sm font-bold text-gray-800">Superficie a cubrir</span>
+                <input
+                  v-model.number="modalCarrito.superficie"
+                  @input="calcularCantidadPorSuperficie"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                  placeholder="m2"
+                >
+              </label>
+
+              <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div class="rounded-lg bg-gray-50 px-3 py-2">
+                  <p class="text-xs font-semibold uppercase text-gray-500">m2 por caja</p>
+                  <p class="text-lg font-bold text-gray-950">{{ modalCarrito.articulo.mts2 }}</p>
+                </div>
+                <div class="rounded-lg bg-gray-50 px-3 py-2">
+                  <p class="text-xs font-semibold uppercase text-gray-500">Cajas necesarias</p>
+                  <p class="text-lg font-bold text-gray-950">{{ modalCarrito.cantidad }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tipo A sin mts2 o tipo normal -->
+            <div v-if="(modalCarrito.tipo === 'A' && modalCarrito.articulo?.mts2 <= 0) || (!modalCarrito.tipo || (modalCarrito.tipo !== 'C' && modalCarrito.tipo !== 'M' && modalCarrito.tipo !== 'A'))" class="rounded-lg border border-gray-200 bg-white p-4">
+              <label class="block">
+                <span class="text-sm font-bold text-gray-800">Cantidad</span>
+                <input
+                  v-model.number="modalCarrito.cantidad"
+                  type="number"
+                  min="1"
+                  step="1"
+                  class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                  placeholder="Unidades"
+                >
+              </label>
+              <p class="mt-2 text-xs text-gray-500">Usá enteros para artículos por unidad.</p>
+            </div>
+          </div>
         </div>
 
-        <!-- Formulario según tipo de artículo -->
-        <div class="space-y-4">
-          <!-- campoa1='c' o 'C': Artículos que se venden por peso (pero precio por cantidad) -->
-          <div v-if="modalCarrito.articulo?.campoa1?.toLowerCase() === 'c'">
-            <div class="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
-              <p class="text-xs text-blue-800">
-                <span class="font-semibold">Peso por artículo:</span> {{ modalCarrito.articulo.peso }} kg
-              </p>
-              <p class="text-xs text-blue-600 mt-1">
-                💡 Ingrese cantidad de artículos o peso total
-              </p>
+        <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 sm:px-6">
+          <div class="mb-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div>
+              <p class="text-xs font-semibold uppercase text-gray-500">Subtotal estimado</p>
+              <p class="text-xs text-gray-500">Se confirma con las condiciones vigentes.</p>
             </div>
-            
-            <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad de Artículos</label>
-            <input 
-              v-model.number="modalCarrito.cantidad" 
-              type="number" 
-              min="1" 
-              step="1"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese cantidad de artículos"
-            >
-            
-            <label class="block text-sm font-medium text-gray-700 mb-1 mt-3">Peso Total (kg)</label>
-            <input 
-              v-model.number="modalCarrito.peso" 
-              type="number" 
-              min="0" 
-              :step="modalCarrito.articulo.peso"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese peso total"
-            >
-            
-            <div class="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <p class="text-sm text-gray-700">
-                <span class="font-semibold">Resumen:</span> 
-                <span class="text-green-600 font-bold">{{ modalCarrito.cantidad }} artículo(s)</span> = 
-                <span class="text-green-600 font-bold">{{ modalCarrito.peso }} kg</span>
-              </p>
-            </div>
+            <span class="text-2xl font-black text-gray-950">${{ formatCurrency(modalCarrito.subtotal) }}</span>
           </div>
 
-          <!-- Tipo C o M (que NO sean campoa1='c'): Cantidad y Peso -->
-          <div v-else-if="(modalCarrito.tipo === 'C' || modalCarrito.tipo === 'M') && modalCarrito.articulo?.campoa1?.toLowerCase() !== 'c'">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
-            <input 
-              v-model.number="modalCarrito.cantidad" 
-              type="number" 
-              min="1" 
-              step="1"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese cantidad"
+          <div class="flex flex-col-reverse gap-3 sm:flex-row">
+            <button
+              @click="cerrarModalCarrito"
+              class="ui-button ui-button-secondary flex-1 px-5 py-3 text-base"
             >
-            
-            <label class="block text-sm font-medium text-gray-700 mb-1 mt-3">Peso (kg)</label>
-            <input 
-              v-model.number="modalCarrito.peso" 
-              type="number" 
-              min="0" 
-              step="0.01"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese peso"
+              Cancelar
+            </button>
+            <button
+              @click="agregarAlCarrito"
+              :disabled="!modalCarrito.cantidad || modalCarrito.cantidad <= 0"
+              class="ui-button ui-button-primary flex-1 px-5 py-3 text-base disabled:cursor-not-allowed disabled:bg-gray-300"
             >
+              Agregar al carrito
+            </button>
           </div>
-
-          <!-- Tipo A con mts2: Superficie -->
-          <div v-if="modalCarrito.tipo === 'A' && modalCarrito.articulo?.mts2 > 0">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Superficie (m²)</label>
-            <input 
-              v-model.number="modalCarrito.superficie" 
-              @input="calcularCantidadPorSuperficie"
-              type="number" 
-              min="0" 
-              step="0.01"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese superficie en m²"
-            >
-            
-            <div class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <p class="text-sm text-gray-700">
-                <span class="font-semibold">m² por caja:</span> {{ modalCarrito.articulo.mts2 }}
-              </p>
-              <p class="text-sm text-gray-700 mt-1">
-                <span class="font-semibold">Cajas necesarias:</span> 
-                <span class="text-blue-600 font-bold">{{ modalCarrito.cantidad }}</span>
-              </p>
-            </div>
-          </div>
-
-          <!-- Tipo A sin mts2 o tipo normal -->
-          <div v-if="(modalCarrito.tipo === 'A' && modalCarrito.articulo?.mts2 <= 0) || (!modalCarrito.tipo || (modalCarrito.tipo !== 'C' && modalCarrito.tipo !== 'M' && modalCarrito.tipo !== 'A'))">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
-            <input 
-              v-model.number="modalCarrito.cantidad" 
-              type="number" 
-              min="1" 
-              step="1"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Ingrese cantidad"
-            >
-          </div>
-
-          <!-- Subtotal -->
-          <div class="p-3 bg-green-50 rounded-lg border border-green-200">
-            <div class="flex justify-between items-center">
-              <span class="text-sm font-medium text-gray-700">Subtotal:</span>
-              <span class="text-xl font-bold text-green-600">${{ formatCurrency(modalCarrito.subtotal) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Botones -->
-        <div class="flex gap-3 mt-6">
-          <button 
-            @click="cerrarModalCarrito" 
-            class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-          >
-            Cancelar
-          </button>
-          <button 
-            @click="agregarAlCarrito" 
-            :disabled="!modalCarrito.cantidad || modalCarrito.cantidad <= 0"
-            class="ui-button ui-button-primary flex-1 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            Agregar
-          </button>
         </div>
       </div>
     </div>
