@@ -103,6 +103,16 @@ const pageEndItem = computed(() => {
   return Math.min(currentPage.value * pageSize.value, totalItems.value)
 })
 
+const searchTerm = computed(() => searchQuery.value.trim())
+
+const resultsSummary = computed(() => {
+  if (!searchTerm.value) {
+    return `${totalItems.value} artículos disponibles`
+  }
+
+  return `${totalItems.value} resultado${totalItems.value === 1 ? '' : 's'} para "${searchTerm.value}"`
+})
+
 const paginationItems = computed(() => {
   if (totalPages.value <= 1) {
     return [{ type: 'page', value: 1 }]
@@ -202,6 +212,25 @@ const formatDate = (dateString) => {
     console.warn('Error formateando fecha:', dateString, error)
     return dateString // Devolver original en caso de error
   }
+}
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;')
+
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const highlightMatch = (value) => {
+  const safeValue = escapeHtml(value)
+  const term = searchTerm.value
+
+  if (!term) return safeValue
+
+  const regex = new RegExp(`(${escapeRegExp(escapeHtml(term))})`, 'ig')
+  return safeValue.replace(regex, '<mark class="search-highlight">$1</mark>')
 }
 
 // Buscar campo de vencimiento de oferta en el objeto artículo
@@ -1003,6 +1032,12 @@ onMounted(() => {
             <p class="text-sm text-gray-500">
               Mostrando {{ pageStartItem }}-{{ pageEndItem }} de {{ totalItems }} artículos
             </p>
+            <p
+              class="mt-1 inline-flex rounded-full px-3 py-1 text-xs font-bold"
+              :class="searchTerm ? 'bg-red-50 text-red-800' : 'bg-gray-100 text-gray-600'"
+            >
+              {{ resultsSummary }}
+            </p>
           </div>
 
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1084,9 +1119,8 @@ onMounted(() => {
                 <h3
                   class="text-lg font-bold text-gray-900 line-clamp-2 flex-1"
                   :title="art.nombre"
-                >
-                  {{ art.nombre }}
-                </h3>
+                  v-html="highlightMatch(art.nombre)"
+                ></h3>
                   <!-- Mostrar fecha de vencimiento de oferta si existe -->
                   <div v-if="art.oferta === 'S'" class="ml-3">
                     <p v-if="getOfferExpiry(art)" class="text-sm text-green-800 font-semibold offer-expiry ml-3">Vence: {{ formatDate(getOfferExpiry(art)) }}</p>
@@ -1102,7 +1136,10 @@ onMounted(() => {
                   </svg>
                 </button>
               </div>
-              <p class="text-sm text-gray-500 mt-1">Clave: {{ art.clave }}</p>
+              <p class="text-sm text-gray-500 mt-1">
+                Clave:
+                <span class="font-semibold text-gray-800" v-html="highlightMatch(art.clave)"></span>
+              </p>
 
               <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
                 <div>
@@ -1149,10 +1186,10 @@ onMounted(() => {
                     <button 
                       @click="consultarPrecio(art)"
                       :disabled="art.consultandoPrecio"
-                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
-                      class="ui-button px-3 py-2 text-sm text-white transition"
+                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'"
+                      class="ui-button px-4 py-2 text-sm transition"
                     >
-                      <div v-if="art.consultandoPrecio" class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      <div v-if="art.consultandoPrecio" class="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full"></div>
                       <span v-if="art.consultandoPrecio">Consultando...</span>
                       <span v-else>Ver precio</span>
                     </button>
@@ -1162,7 +1199,7 @@ onMounted(() => {
                 <button 
                   v-if="art.mostrar_precio && art.precio_lista"
                   @click="abrirModalCarrito(art)" 
-                  class="ui-button ui-button-primary px-4 py-2 text-sm"
+                  class="ui-button ui-button-primary px-5 py-3 text-sm shadow-sm"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1175,19 +1212,19 @@ onMounted(() => {
         </div>
 
         <!-- Vista detalle -->
-        <div v-else-if="articulos.length > 0" class="space-y-4">
+        <div v-else-if="articulos.length > 0" class="space-y-3">
           <article
             v-for="art in articulos"
             :key="art.clave"
             :class="[
-              'overflow-hidden rounded-xl border shadow-sm transition hover:shadow-md',
+              'overflow-hidden rounded-lg border shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'border-yellow-300 bg-yellow-50' : '',
               art.oferta === 'S' ? 'border-green-300 bg-green-50' : '',
               (art.discontinuado !== 'S' && art.oferta !== 'S') ? 'border-gray-200 bg-white' : ''
             ]"
           >
-            <div class="flex flex-col gap-5 p-5 xl:flex-row xl:items-start">
-              <div class="relative h-48 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 xl:h-40 xl:w-40 xl:flex-shrink-0">
+            <div class="flex flex-col gap-4 p-4 xl:flex-row xl:items-center">
+              <div class="relative h-40 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 xl:h-28 xl:w-32 xl:flex-shrink-0">
                 <img
                   v-if="art.imagen"
                   :src="art.imagen"
@@ -1216,8 +1253,11 @@ onMounted(() => {
                       </span>
                     </div>
 
-                    <h3 class="text-xl font-bold text-gray-900">{{ art.nombre }}</h3>
-                    <p class="mt-1 text-sm text-gray-500">Clave: {{ art.clave }}</p>
+                    <h3 class="text-lg font-bold text-gray-900" v-html="highlightMatch(art.nombre)"></h3>
+                    <p class="mt-1 text-sm text-gray-500">
+                      Clave:
+                      <span class="font-semibold text-gray-800" v-html="highlightMatch(art.clave)"></span>
+                    </p>
                     <p v-if="art.oferta === 'S' && getOfferExpiry(art)" class="mt-2 text-sm font-semibold text-green-800">
                       Vence: {{ formatDate(getOfferExpiry(art)) }}
                     </p>
@@ -1235,7 +1275,7 @@ onMounted(() => {
                   </button>
                 </div>
 
-                <div class="mt-5 grid grid-cols-2 gap-4 text-sm lg:grid-cols-5">
+                <div class="mt-4 grid grid-cols-2 gap-3 text-sm lg:grid-cols-5">
                   <div>
                     <p class="text-gray-500">Unidad</p>
                     <p class="font-semibold text-gray-900">{{ art.unidad }}</p>
@@ -1279,10 +1319,10 @@ onMounted(() => {
                     <button
                       @click="consultarPrecio(art)"
                       :disabled="art.consultandoPrecio"
-                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
-                      class="ui-button w-full px-3 py-2 text-sm text-white"
+                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'"
+                      class="ui-button w-full px-3 py-2 text-sm"
                     >
-                      <div v-if="art.consultandoPrecio" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <div v-if="art.consultandoPrecio" class="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent"></div>
                       <span v-if="art.consultandoPrecio">Consultando...</span>
                       <span v-else>Ver precio</span>
                     </button>
@@ -1291,12 +1331,12 @@ onMounted(() => {
                   <button
                     v-if="art.mostrar_precio && art.precio_lista"
                     @click="abrirModalCarrito(art)"
-                    class="ui-button ui-button-primary mt-4 w-full px-4 py-2 text-sm"
+                    class="ui-button ui-button-primary mt-4 w-full px-4 py-3 text-sm shadow-sm"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    Agregar al carrito
+                    Agregar
                   </button>
                 </div>
               </div>
@@ -1658,6 +1698,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
+:deep(.search-highlight) {
+  border-radius: 4px;
+  background: #fde68a;
+  color: #7f1d1d;
+  padding: 0 2px;
+}
+
 /* Altura fija para tarjetas */
 .bg-white.rounded-lg.shadow {
   min-height: 420px;
