@@ -1632,7 +1632,7 @@ onMounted(() => {
                     type="number"
                     min="1"
                     step="1"
-                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                     placeholder="Ej: 10"
                   >
                 </label>
@@ -1644,7 +1644,7 @@ onMounted(() => {
                     type="number"
                     min="0"
                     :step="modalCarrito.articulo.peso"
-                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                     placeholder="Kg"
                   >
                 </label>
@@ -1669,7 +1669,7 @@ onMounted(() => {
                     type="number"
                     min="1"
                     step="1"
-                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                     placeholder="Unidades"
                   >
                 </label>
@@ -1681,7 +1681,7 @@ onMounted(() => {
                     type="number"
                     min="0"
                     step="0.01"
-                    class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                    class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                     placeholder="Kg"
                   >
                 </label>
@@ -1698,7 +1698,7 @@ onMounted(() => {
                   type="number"
                   min="0"
                   step="0.01"
-                  class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                  class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                   placeholder="m2"
                 >
               </label>
@@ -1724,7 +1724,7 @@ onMounted(() => {
                   type="number"
                   min="1"
                   step="1"
-                  class="ui-field mt-1 px-4 py-3 text-base font-semibold"
+                  class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm transition focus:border-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
                   placeholder="Unidades"
                 >
               </label>
@@ -1745,14 +1745,14 @@ onMounted(() => {
           <div class="flex flex-col-reverse gap-3 sm:flex-row">
             <button
               @click="cerrarModalCarrito"
-              class="ui-button ui-button-secondary flex-1 px-5 py-3 text-base"
+              class="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-800 shadow-sm transition hover:border-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200"
             >
               Cancelar
             </button>
             <button
               @click="agregarAlCarrito"
               :disabled="!modalCarrito.cantidad || modalCarrito.cantidad <= 0"
-              class="ui-button ui-button-primary flex-1 px-5 py-3 text-base disabled:cursor-not-allowed disabled:bg-gray-300"
+              class="inline-flex flex-1 items-center justify-center rounded-lg border border-red-700 bg-red-700 px-5 py-3 text-base font-bold text-white shadow-lg shadow-red-900/20 transition hover:border-red-800 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-200 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none"
             >
               Agregar al carrito
             </button>
