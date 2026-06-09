@@ -19,10 +19,12 @@ from django.urls import path, include
 from rest_framework_simplejwt.views import token_refresh
 from django.conf import settings
 from django.conf.urls.static import static
+from api.health import health_check
 from api import views as api_views
     
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('health/', health_check, name='health'),
     path('t/<str:code>/', api_views.track_short_redirect, name='track_short_redirect_root'),
     path('api/', include('api.urls')),
     path('api/graficos/', include('graficos.urls')),

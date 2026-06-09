@@ -1,0 +1,80 @@
+name: ventas-ferreteria
+display_name: Ventas Ferretería Avenida
+client: Ferretería Avenida
+environment: production
+priority: critica
+
+development:
+  source_path_windows: 'X:\web\revendedores'
+
+production:
+  server: fg-ubuntu
+  server_ip: 192.168.0.195
+  project_path: /var/www/html/reventa
+  domain: ventas.ferreteriaavenida.com.ar
+  public_url: https://ventas.ferreteriaavenida.com.ar
+  health_url: https://ventas.ferreteriaavenida.com.ar/api/health/
+  internal_backend_url: http://127.0.0.1:8088
+  internal_health_url: http://127.0.0.1:8088/health/
+  nginx_site: /etc/nginx/sites-enabled/ventas
+  frontend_root: /var/www/html/reventa/frontend
+  backend_port: 8088
+  backend_bind: 127.0.0.1:8088
+  ssl_certificate: /etc/letsencrypt/live/ventas.ferreteriaavenida.com.ar/fullchain.pem
+
+application:
+  type: django
+  backend_module: backend.wsgi:application
+  backend_runtime: gunicorn
+  virtualenv_path_production: /var/www/html/reventa/venv
+  logs_path_production: /var/www/html/reventa/logs/gunicorn.log
+  uses_database: true
+  database_check: SELECT 1
+
+health:
+  public_path: /api/health/
+  internal_path: /health/
+  expected_status: 200
+  expected_json_status: ok
+  requires_auth: false
+  checks:
+    - application
+    - database
+    - timestamp
+    - version_or_commit
+
+monitoring:
+  n8n_workflow: Monitor Servicios Producción - Nginx Apps
+  enabled: true
+  alert_telegram: true
+  alert_email: true
+  consecutive_failures_before_alert: 2
+  recovery_alert: true
+
+deploy:
+  source_of_truth: repository
+  do_not_modify_production_directly: true
+  branch: main
+  deploy_mode: manual_first
+  rollback_strategy: git_previous_commit
+  requires_tests: true
+  requires_migrations: false
+  requires_frontend_build: false
+
+commands:
+  test: pytest
+  django_test_alternative: python manage.py test
+  migrate: python manage.py migrate
+  collectstatic: python manage.py collectstatic --noinput
+  restart: sudo systemctl restart reventa.service
+  logs: journalctl -u reventa.service -n 100 --no-pager
+  local_health_test: curl -i http://127.0.0.1:8088/health/
+  public_health_test: curl -i https://ventas.ferreteriaavenida.com.ar/api/health/
+
+notes:
+  - Nginx ya tiene location /api/ hacia http://127.0.0.1:8088.
+  - No tocar Nginx salvo que /api/health/ no llegue correctamente al backend.
+  - No crear código nuevo únicamente en producción.
+  - Todo cambio debe quedar en Git.
+  - El repo fuente de desarrollo está en X:\web\revendedores.
+  - La carpeta productiva Linux está en /var/www/html/reventa.
