@@ -52,16 +52,18 @@ class PedidoItemSerializer(serializers.ModelSerializer):
 
 class PedidoSerializer(serializers.ModelSerializer):
     items = PedidoItemSerializer(many=True)
+    observaciones = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=1000)
     estado_display = serializers.CharField(source='get_estado_display', read_only=True)
     usuario_nombre = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
         model = Pedido
-        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'condicion_pago', 'cliente_snapshot', 'idempotency_key', 'email_cliente_estado', 'email_cliente_intentos', 'email_cliente_enviado_at', 'email_cliente_ultimo_error', 'email_ventas_estado', 'email_ventas_intentos', 'email_ventas_enviado_at', 'email_ventas_ultimo_error', 'items']
+        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'condicion_pago', 'cliente_snapshot', 'idempotency_key', 'email_cliente_estado', 'email_cliente_intentos', 'email_cliente_enviado_at', 'email_cliente_ultimo_error', 'email_ventas_estado', 'email_ventas_intentos', 'email_ventas_enviado_at', 'email_ventas_ultimo_error', 'observaciones', 'items']
         read_only_fields = ('user', 'fecha_creacion', 'total', 'estado_display', 'usuario_nombre', 'cliente_snapshot', 'idempotency_key', 'email_cliente_estado', 'email_cliente_intentos', 'email_cliente_enviado_at', 'email_cliente_ultimo_error', 'email_ventas_estado', 'email_ventas_intentos', 'email_ventas_enviado_at', 'email_ventas_ultimo_error')
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
+        observaciones = validated_data.pop('observaciones', '').strip()
         user = validated_data.get('user')
 
         try:
@@ -83,6 +85,7 @@ class PedidoSerializer(serializers.ModelSerializer):
             'lista_precio': cliente.lista_precio,
             'condicion_pago_id': condicion_pago.id if condicion_pago else '',
             'condicion_pago_nombre': condicion_pago.nombre if condicion_pago else '',
+            'observaciones': observaciones,
         }
 
         pedido = Pedido.objects.create(**validated_data)

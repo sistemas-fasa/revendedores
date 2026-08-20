@@ -93,7 +93,7 @@ export const cart = reactive({
     checkoutInProgress: false,
     checkoutIdempotencyKey: null,
 
-    async checkout(onProgress = null) {
+    async checkout(onProgress = null, overrides = {}) {
         if (this.items.length === 0) throw new Error('El carrito está vacío');
         if (this.checkoutInProgress) return { success: false, message: 'El pedido ya se está enviando. Esperá un momento.', pedido: null };
         this.checkoutInProgress = true;
@@ -102,14 +102,15 @@ export const cart = reactive({
         }
         try {
             if (onProgress) onProgress('Enviando pedido...');
-            const modalidad = localStorage.getItem('articulos_modalidad') || 'retira';
+            const modalidad = overrides.modalidad || localStorage.getItem('articulos_modalidad') || 'retira';
             const savedImpuestos = localStorage.getItem('articulos_con_impuestos');
-            const con_impuestos = savedImpuestos === null ? true : savedImpuestos === 'true';
-            const condicion_pago = localStorage.getItem('condicion_pago');
+            const con_impuestos = overrides.con_impuestos ?? (savedImpuestos === null ? true : savedImpuestos === 'true');
+            const condicion_pago = overrides.condicion_pago || localStorage.getItem('condicion_pago');
             const pedidoData = {
                 modalidad,
                 con_impuestos,
                 ...(condicion_pago ? { condicion_pago } : {}),
+                ...(overrides.observaciones ? { observaciones: overrides.observaciones } : {}),
                 items: this.items.map(item => ({
                     articulo: item.articulo.clave,
                     cantidad: item.cantidad,
