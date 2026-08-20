@@ -834,6 +834,63 @@ watch(() => modalCarrito.value.peso, (newPeso, oldPeso) => {
   }
 })
 
+// === CARGA RÁPIDA DESDE TARJETAS ===
+const quickQuantities = ref({})
+
+const getCartItem = (articulo) => cart.items.find(item => item.articulo.clave === articulo.clave)
+const isInCart = (articulo) => Boolean(getCartItem(articulo))
+
+const getQuickStep = (articulo) => {
+  const campoa1 = (articulo.campoa1 || '').toLowerCase()
+  const mts2 = parseFloat(articulo.mts2) || 0
+  return campoa1 === 'a' && mts2 > 0 ? mts2 : 1
+}
+
+const getQuickQuantity = (articulo) => {
+  const stored = quickQuantities.value[articulo.clave]
+  if (stored !== undefined && stored !== null && stored !== '') return Number(stored)
+  const existing = getCartItem(articulo)
+  if (existing) return Number(existing.cantidad)
+  return getQuickStep(articulo)
+}
+
+const setQuickQuantity = (articulo, value) => {
+  const step = getQuickStep(articulo)
+  const parsed = Number(value)
+  let next = Number.isFinite(parsed) && parsed > 0 ? parsed : step
+  if ((articulo.campoa1 || '').toLowerCase() === 'a' && step > 0) {
+    next = Math.max(step, Math.ceil(next / step) * step)
+  } else {
+    next = Math.max(1, next)
+  }
+  quickQuantities.value = { ...quickQuantities.value, [articulo.clave]: Number(next.toFixed(3)) }
+}
+
+const incrementQuickQuantity = (articulo) => setQuickQuantity(articulo, getQuickQuantity(articulo) + getQuickStep(articulo))
+const decrementQuickQuantity = (articulo) => setQuickQuantity(articulo, Math.max(getQuickStep(articulo), getQuickQuantity(articulo) - getQuickStep(articulo)))
+
+const quickQuantityHelper = (articulo) => {
+  const campoa1 = (articulo.campoa1 || '').toLowerCase()
+  const mts2 = parseFloat(articulo.mts2) || 0
+  if (campoa1 === 'a' && mts2 > 0) {
+    const cajas = Math.round(getQuickQuantity(articulo) / mts2)
+    return `${cajas} caja${cajas === 1 ? '' : 's'} · ${mts2} m²/caja`
+  }
+  return isInCart(articulo) ? `En pedido: ${getCartItem(articulo).cantidad}` : ''
+}
+
+const quickAddToCart = (articulo) => {
+  const cantidad = getQuickQuantity(articulo)
+  const existing = getCartItem(articulo)
+  if (existing) {
+    cart.updateQuantity(articulo.clave, cantidad)
+  } else {
+    cart.add(articulo, cantidad)
+  }
+  quickQuantities.value = { ...quickQuantities.value, [articulo.clave]: cantidad }
+  showNotification(`${articulo.nombre}: ${cantidad} agregado${existing ? ' / actualizado' : ''} en el pedido`, 'success')
+}
+
 // Detectar redimensionamiento
 onMounted(() => {
   window.addEventListener('resize', () => {
@@ -1173,7 +1230,7 @@ onMounted(() => {
                 <div class="w-full bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg text-center">Stock disponible: {{ formatStock(art.stock) }}</div>
               </div>
 
-              <div class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <div class="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-3">
                 <!-- Mostrar precio si está disponible -->
                 <div v-if="art.mostrar_precio && art.precio_lista">
                     <p class="text-xs font-bold uppercase text-gray-500">Precio</p>
@@ -1193,16 +1250,25 @@ onMounted(() => {
                     </button>
                 </div>
                 
-                <!-- Botón de agregar al carrito (solo si hay precio disponible) -->
+                <div v-if="art.mostrar_precio && art.precio_lista" class="ml-auto min-w-[150px]">
+                  <div class="grid grid-cols-[36px_minmax(56px,1fr)_36px] overflow-hidden rounded-lg border border-gray-300 bg-white">
+                    <button type="button" class="h-10 font-black text-gray-700 hover:bg-gray-100" @click="decrementQuickQuantity(art)" :aria-label="`Restar ${art.nombre}`">−</button>
+                    <input type="number" :min="getQuickStep(art)" :step="getQuickStep(art)" :value="getQuickQuantity(art)" class="h-10 w-full border-x border-gray-200 text-center text-sm font-black text-gray-950 focus:outline-none" @change="setQuickQuantity(art, $event.target.value)" />
+                    <button type="button" class="h-10 font-black text-gray-700 hover:bg-gray-100" @click="incrementQuickQuantity(art)" :aria-label="`Sumar ${art.nombre}`">+</button>
+                  </div>
+                  <p class="mt-1 min-h-4 text-[11px] font-semibold text-gray-500">{{ quickQuantityHelper(art) }}</p>
+                </div>
+
+                <!-- Botón de agregar/actualizar carrito -->
                 <button 
                   v-if="art.mostrar_precio && art.precio_lista"
-                  @click="abrirModalCarrito(art)" 
-                  class="ui-button ui-button-primary px-5 py-3 text-sm shadow-sm"
+                  @click="quickAddToCart(art)" 
+                  class="ui-button ui-button-primary px-4 py-2.5 text-sm shadow-sm"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    <span>Agregar</span>
+                    <span>{{ isInCart(art) ? 'Actualizar' : 'Agregar' }}</span>
                 </button>
               </div>
             </div>
@@ -1326,15 +1392,24 @@ onMounted(() => {
                     </button>
                   </div>
 
+                  <div v-if="art.mostrar_precio && art.precio_lista" class="mt-3">
+                    <div class="grid grid-cols-[40px_minmax(64px,1fr)_40px] overflow-hidden rounded-lg border border-gray-300 bg-white">
+                      <button type="button" class="h-10 font-black text-gray-700 hover:bg-gray-100" @click="decrementQuickQuantity(art)">−</button>
+                      <input type="number" :min="getQuickStep(art)" :step="getQuickStep(art)" :value="getQuickQuantity(art)" class="h-10 w-full border-x border-gray-200 text-center text-sm font-black focus:outline-none" @change="setQuickQuantity(art, $event.target.value)" />
+                      <button type="button" class="h-10 font-black text-gray-700 hover:bg-gray-100" @click="incrementQuickQuantity(art)">+</button>
+                    </div>
+                    <p class="mt-1 text-[11px] font-semibold text-gray-500">{{ quickQuantityHelper(art) }}</p>
+                  </div>
+
                   <button
                     v-if="art.mostrar_precio && art.precio_lista"
-                    @click="abrirModalCarrito(art)"
-                    class="ui-button ui-button-primary mt-4 w-full px-4 py-3 text-sm shadow-sm"
+                    @click="quickAddToCart(art)"
+                    class="ui-button ui-button-primary mt-3 w-full px-4 py-3 text-sm shadow-sm"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    Agregar
+                    {{ isInCart(art) ? 'Actualizar pedido' : 'Agregar al pedido' }}
                   </button>
                 </div>
               </div>
