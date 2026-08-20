@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 
 import { cart } from '@/services/cart';
 import FloatingCartButton from '@/components/FloatingCartButton.vue';
+import OrderSidebar from '@/components/OrderSidebar.vue';
 import ActionButton from '@/components/ui/ActionButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
@@ -44,6 +45,7 @@ const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
 const searchInputRef = ref(null)
+const cartSidebarCollapsed = ref(localStorage.getItem('order_sidebar_collapsed') === '1')
 
 // Autocompletado
 const showSuggestions = ref(false)
@@ -914,7 +916,13 @@ onMounted(() => {
 <template>
   <div class="ui-page">
     <main class="main-content">
-      <div class="space-y-4">
+      <div
+        class="grid items-start gap-4 transition-[grid-template-columns] duration-200"
+        :class="cartSidebarCollapsed
+          ? 'xl:grid-cols-[minmax(0,1fr)_68px]'
+          : 'xl:grid-cols-[minmax(0,1fr)_380px]'"
+      >
+        <div class="min-w-0 space-y-4">
 
 
 
@@ -1482,6 +1490,8 @@ onMounted(() => {
             </button>
           </div>
         </div>
+
+        <OrderSidebar v-model:collapsed="cartSidebarCollapsed" />
       </div>
 
       <!-- Modal de filtros (móvil) -->
@@ -1614,7 +1624,7 @@ onMounted(() => {
       </transition-group>
 
     <!-- Botón de Carrito Flotante (Arrastrable) -->
-    <FloatingCartButton />
+    <FloatingCartButton class="xl:hidden" />
 
     <!-- Modal de Agregar al Carrito -->
     <div v-if="modalCarrito.visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-4" @click.self="cerrarModalCarrito">
