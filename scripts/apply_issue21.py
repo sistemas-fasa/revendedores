@@ -65,7 +65,6 @@ const quickAddToCart = (articulo) => {
 if helpers not in text:
     text = text.replace(anchor, helpers + anchor, 1)
 
-# Grid: permitir wrap y agregar controles inline antes del CTA.
 text = text.replace('class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between"',
                     'class="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-3"', 1)
 
@@ -95,7 +94,6 @@ if grid_marker not in text:
 text = text.replace(grid_marker, grid_replacement, 1)
 text = text.replace('<span>Agregar</span>', '<span>{{ isInCart(art) ? \'Actualizar\' : \'Agregar\' }}</span>', 1)
 
-# Detalle: controles inline dentro del bloque de precio y CTA directo.
 detail_marker = '''                  <button
                     v-if="art.mostrar_precio && art.precio_lista"
                     @click="abrirModalCarrito(art)"
@@ -118,7 +116,8 @@ detail_replacement = '''                  <div v-if="art.mostrar_precio && art.p
 if detail_marker not in text:
     raise SystemExit('No se encontró CTA detalle')
 text = text.replace(detail_marker, detail_replacement, 1)
-# Solo el CTA de detalle restante con texto plano.
 text = text.replace('                    Agregar\n                  </button>', "                    {{ isInCart(art) ? 'Actualizar pedido' : 'Agregar al pedido' }}\n                  </button>", 1)
 
 path.write_text(text, encoding='utf-8')
+
+# Trigger intencional.
