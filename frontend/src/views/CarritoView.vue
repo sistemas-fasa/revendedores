@@ -327,55 +327,14 @@ const showNotification = (message, type) => {
   }, duration)
 }
 
-const checkout = async () => {
+const checkout = () => {
   if (cart.items.length === 0) {
     showNotification('El carrito está vacío', 'error')
     return
   }
-
-  loading.value = true
-  processingStep.value = 'Procesando pedido...'
-
-  try {
-    const result = await cart.checkout((step) => {
-      processingStep.value = step
-    })
-
-    if (result.success) {
-      processingStep.value = 'Pedido confirmado'
-      showNotification(result.message || 'Pedido realizado con éxito. Recibirás un correo de confirmación.', 'success')
-      setTimeout(() => {
-        const pedidoId = result.pedido?.id || 'N/A'
-        router.push(`/pedido-confirmado/${pedidoId}`)
-      }, 1500)
-    } else {
-      processingStep.value = 'Error en el proceso'
-      showNotification(result.message || 'Error al procesar el pedido. Intente de nuevo.', 'error')
-    }
-  } catch (error) {
-    let errorMessage = 'Error al procesar el pedido. Intente de nuevo.'
-
-    if (error.response) {
-      if (error.response.status === 401) {
-        errorMessage = 'Su sesión ha expirado. Inicie sesión nuevamente.'
-      } else if (error.response.status === 400) {
-        errorMessage = error.response.data?.error || 'Datos del pedido inválidos.'
-      } else if (error.response.status >= 500) {
-        errorMessage = 'Error interno del servidor. Intente más tarde.'
-      }
-    } else if (error.message && error.message.includes('Timeout')) {
-      errorMessage = 'El proceso tardó más de lo esperado. Verifique su pedido en su cuenta.'
-    } else if (error.code === 'NETWORK_ERROR') {
-      errorMessage = 'Error de conexión. Verifique su conexión a internet.'
-    }
-
-    processingStep.value = 'Error en el proceso'
-    showNotification(errorMessage, 'error')
-  } finally {
-    loading.value = false
-    processingStep.value = ''
-  }
+  router.push('/revisar-pedido')
 }
+
 </script>
 
 <style scoped>

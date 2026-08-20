@@ -32,6 +32,12 @@ const routes = [
     component: () => import('@/views/CarritoView.vue'), 
     meta: { requiresAuth: true } 
   },
+  {
+    path: '/revisar-pedido',
+    name: 'revisar-pedido',
+    component: () => import('@/views/RevisarPedidoView.vue'),
+    meta: { requiresAuth: true }
+  },
   { 
     path: '/pedidos', 
     component: () => import('@/views/PedidosView.vue'), 
