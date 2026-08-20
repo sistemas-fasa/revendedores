@@ -70,3 +70,5 @@ class CheckoutIdempotencyTests(TestCase):
         with self.assertRaises(RuntimeError):
             self.client.post('/api/pedidos/checkout/', self.payload, format='json', HTTP_IDEMPOTENCY_KEY='rollback')
         self.assertEqual(Pedido.objects.count(), 0)
+
+# Rama cross-fork limpia: mantiene aislado el alcance del issue #5.
