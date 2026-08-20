@@ -1,0 +1,32 @@
+name: Apply issue 5 clean
+
+on:
+  push:
+    branches:
+      - issue-5-crossfork-clean
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-5-crossfork-clean
+          fetch-depth: 0
+
+      - name: Apply clean issue 5 patch
+        run: python tools/apply_issue5_clean.py
+
+      - name: Commit result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-issue5-clean.yml
+          git rm tools/apply_issue5_clean.py
+          git add backend frontend
+          git commit -m "feat: checkout atómico e idempotente (#5)"
+          git push origin HEAD:issue-5-crossfork-clean
