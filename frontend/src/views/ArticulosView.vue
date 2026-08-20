@@ -11,7 +11,6 @@ import OrderSidebar from '@/components/OrderSidebar.vue';
 import ActionButton from '@/components/ui/ActionButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
-import PageHeader from '@/components/ui/PageHeader.vue'
 
 // Estado del modal de imagen
 const showImageModal = ref(false)
@@ -448,80 +447,97 @@ const consultarPrecio = async (articulo) => {
       throw new Error(`Precio no disponible: ${response.data.articulo.precio_lista}`);
     }
   } catch (err) {
-    console.error('Error al consultar precio:', err);
+    console.error('Error consultando precio:', err);
     
-    // Quitar loading del botón
+    // Limpiar loading en caso de error
     const articuloIndex = articulos.value.findIndex(art => art.clave === articulo.clave);
     if (articuloIndex !== -1) {
       articulos.value[articuloIndex].consultandoPrecio = false;
     }
     
-    const errorMsg = err.response?.data?.error || err.message || 'No se pudo consultar el precio. Intente de nuevo.';
-    showNotification(errorMsg, 'error');
+    // Extraer mensaje de error del servidor
+    let errorMessage = 'No se pudo consultar el precio. Intente de nuevo.';
+    if (err.response?.data?.error) {
+      errorMessage = err.response.data.error;
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
+    showNotification(errorMessage, 'error');
   }
 };
 
-// === FETCH FORMAS DE PAGO ===
-const fetchFormasPago = async () => {
-  loadingFormasPago.value = true
-  try {
-    const response = await api.get('/api/formas-pago/')
-    formasPago.value = response.data
-    loadSavedFilters()
-  } catch (err) {
-    console.error('Error al cargar formas de pago:', err)
-    condicionPago.value = ''
-    showNotification('No se pudieron cargar las condiciones de pago.', 'error')
-  } finally {
-    loadingFormasPago.value = false
-  }
-}
+// === WATCHERS ===
+watch([modalidad, conImpuestos, condicionPago], ([newModalidad, newConImpuestos, newCondicionPago], [oldModalidad, oldConImpuestos, oldCondicionPago]) => {
+  // Evitar fetch inicial si todavía no hay condición de pago cargada
+  if (!newCondicionPago) return
+  
+  saveFilters()
+  currentPage.value = 1
+  
+  // Recargar artículos cuando cambien los filtros
+  fetchArticulos()
+})
 
-// === DEBOUNCE EN BÚSQUEDA ===
-watch(searchQuery, () => {
-  if (searchTimeout) clearTimeout(searchTimeout)
-
-  if (!searchQuery.value.trim()) {
-    currentPage.value = 1
-    fetchArticulos()
-    return
-  }
-
+watch(searchQuery, (newQuery) => {
+  clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
     currentPage.value = 1
     fetchArticulos()
   }, 500)
+  
+  showSuggestions.value = newQuery.length > 0
+  updateSuggestions()
 })
 
-// Al cambiar condición de pago
-watch(condicionPago, () => {
-  saveFilters()
-  fetchArticulos()
-})
-
-// Al cambiar otros filtros
-watch([modalidad, conImpuestos], () => {
-  saveFilters()
-  currentPage.value = 1
-  fetchArticulos()
-})
-
-// Si cambia la query `discontinuados`, recargar artículos
 watch(() => route.query.discontinuados, () => {
   currentPage.value = 1
   fetchArticulos()
 })
 
-// Reaccionar cuando cambia la query `oferta`
 watch(() => route.query.oferta, () => {
   currentPage.value = 1
   fetchArticulos()
 })
 
-// Registrar vistas de ofertas/discontinuados (una vez por session)
-const trackArticuloView = async (tipo) => {
-  const key = `view_logged_${tipo}`
+// === CARGAR FORMAS DE PAGO ===
+const fetchFormasPago = async () => {
+  loadingFormasPago.value = true
   try {
+    const response = await api.get('/api/formas-pago/')
+    formasPago.value = response.data
+    
+    // Cargar filtros guardados después de tener las formas de pago
+    loadSavedFilters()
+    
+    // Si no hay condición guardada o no es válida, usar la del cliente o la primera disponible
+    if (!condicionPago.value && formasPago.value.length > 0) {
+      // Intentar usar la condición de pago por defecto del cliente
+      try {
+        const userResponse = await api.get('/api/user/')
+        const clienteCondicionPago = userResponse.data?.cliente?.condicion_pago
+        if (clienteCondicionPago && formasPago.value.some(fp => fp.id === clienteCondicionPago)) {
+          condicionPago.value = clienteCondicionPago
+        } else {
+          condicionPago.value = formasPago.value[0].id
+        }
+      } catch (error) {
+        console.warn('No se pudo cargar la condición de pago del cliente, usando la primera disponible:', error)
+        condicionPago.value = formasPago.value[0].id
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar formas de pago:', error)
+    showNotification('No se pudieron cargar las condiciones de pago. Intente más tarde.', 'error')
+  } finally {
+    loadingFormasPago.value = false
+  }
+}
+
+// === TRACKING DE VISUALIZACIONES ===
+const trackArticuloView = async (tipo) => {
+  try {
+    const key = `tracked_${tipo}_${new Date().toISOString().slice(0,10)}`
     if (sessionStorage.getItem(key)) return
     await api.post('/api/track-articulos-view/', { tipo })
     sessionStorage.setItem(key, '1')
@@ -1188,25 +1204,24 @@ onMounted(() => {
                 ></h3>
                   <!-- Mostrar fecha de vencimiento de oferta si existe -->
                   <div v-if="art.oferta === 'S'" class="ml-3">
-                    <p v-if="getOfferExpiry(art)" class="text-sm text-green-800 font-semibold offer-expiry ml-3">Vence: {{ formatDate(getOfferExpiry(art)) }}</p>
+                    <p v-if="getOfferExpiry(art)" class="text-xs font-semibold text-green-800">Vence: {{ formatDate(getOfferExpiry(art)) }}</p>
                   </div>
-                <button
-                  @click.stop="toggleFavorite(art)"
-                  class="p-1 rounded-full text-gray-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-                  :class="{ 'text-red-500': art.is_favorito }"
-                  aria-label="Añadir o quitar de favoritos"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" :class="{ 'fill-current': art.is_favorito }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
-              </div>
-              <p class="text-sm text-gray-500 mt-1">
-                Clave:
-                <span class="font-semibold text-gray-800" v-html="highlightMatch(art.clave)"></span>
-              </p>
+                  <!-- Botón de favorito -->
+                  <button
+                    @click.stop="toggleFavorite(art)"
+                    class="ml-2 text-gray-400 hover:text-red-500 focus:outline-none"
+                    :class="{ 'text-red-500': art.is_favorito }"
+                    aria-label="Añadir o quitar de favoritos"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" :class="{ 'fill-current': art.is_favorito }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </button>
+                </div>
 
-              <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
+              <p class="mt-1 text-sm text-gray-500">Clave: <span class="font-semibold" v-html="highlightMatch(art.clave)"></span></p>
+
+              <div class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                 <div>
                   <p class="text-gray-500">Unidad</p>
                   <p class="font-semibold">{{ art.unidad }}</p>
@@ -1215,7 +1230,6 @@ onMounted(() => {
                   <p class="text-gray-500">Peso</p>
                   <p class="font-semibold">{{ art.peso }}</p>
                 </div>
-                <!-- Mostrar mts2 por caja si es mayor que 0 -->
                 <div v-if="art.mts2 && parseFloat(art.mts2) > 0">
                   <p class="text-gray-500">Mts² por caja</p>
                   <p class="font-semibold text-blue-600">{{ formatCurrency(art.mts2) }} m²</p>
@@ -1634,7 +1648,6 @@ onMounted(() => {
         </div>
       </transition-group>
 
-    <!-- Botón de Carrito Flotante (Arrastrable) -->
     <MobileOrderDrawer />
 
     <!-- Modal de Agregar al Carrito -->
@@ -1789,172 +1802,108 @@ onMounted(() => {
                   placeholder="Unidades"
                 >
               </label>
-              <p class="mt-2 text-xs text-gray-500">Usá enteros para artículos por unidad.</p>
+            </div>
+          </div>
+
+          <!-- Resumen del subtotal -->
+          <div class="mt-5 rounded-lg bg-gray-950 px-4 py-4 text-white">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs font-semibold uppercase text-gray-400">Subtotal estimado</p>
+                <p class="mt-1 text-sm text-gray-300">Se recalcula al cambiar cantidad, peso o superficie.</p>
+              </div>
+              <p class="text-2xl font-black">${{ formatCurrency(modalCarrito.subtotal) }}</p>
             </div>
           </div>
         </div>
 
-        <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 sm:px-6">
-          <div class="mb-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <div>
-              <p class="text-xs font-semibold uppercase text-gray-500">Subtotal estimado</p>
-              <p class="text-xs text-gray-500">Se confirma con las condiciones vigentes.</p>
-            </div>
-            <span class="text-2xl font-black text-gray-950">${{ formatCurrency(modalCarrito.subtotal) }}</span>
-          </div>
-
-          <div class="flex flex-col-reverse gap-3 sm:flex-row">
-            <button
-              @click="cerrarModalCarrito"
-              class="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-800 shadow-sm transition hover:border-gray-400 hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="agregarAlCarrito"
-              :disabled="!modalCarrito.cantidad || modalCarrito.cantidad <= 0"
-              class="inline-flex flex-1 items-center justify-center rounded-lg border border-red-700 bg-red-700 px-5 py-3 text-base font-bold text-white shadow-lg shadow-red-900/20 transition hover:border-red-800 hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-200 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none"
-            >
-              Agregar al carrito
-            </button>
-          </div>
+        <div class="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button
+            @click="cerrarModalCarrito"
+            class="ui-button ui-button-secondary w-full px-4 py-3 text-sm sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="agregarAlCarrito"
+            class="ui-button ui-button-primary w-full px-5 py-3 text-sm shadow-sm sm:w-auto"
+          >
+            Agregar al carrito
+          </button>
         </div>
       </div>
     </div>
-
-    </main>
-  </div>
+  </main>
+</div>
 </template>
 
 <style scoped>
-:deep(.search-highlight) {
-  border-radius: 4px;
-  background: #fde68a;
-  color: #7f1d1d;
-  padding: 0 2px;
+.mobile-search-card,
+.products-view-toolbar {
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.07);
 }
 
-/* Altura fija para tarjetas */
-.bg-white.rounded-lg.shadow {
-  min-height: 420px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+.mobile-search-head {
+  background:
+    linear-gradient(90deg, rgba(254, 226, 226, 0.78), rgba(255, 255, 255, 0) 58%),
+    #fff7f7;
 }
 
-.hover\\:scale-102:hover {
-  transform: scale(1.02);
+.mobile-search-input {
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.08);
 }
 
-/* Animación suave para ofertas */
-@keyframes gentle-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.12); }
-  50% { box-shadow: 0 8px 20px -6px rgba(34,197,94,0.18); }
-  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.12); }
+.mobile-search-input:focus-within {
+  box-shadow: 0 14px 32px rgba(220, 38, 38, 0.16);
 }
-.offer-animate {
-  animation: gentle-pulse 3.5s ease-in-out infinite;
+
+.search-highlight {
+  border-radius: 0.2rem;
+  background: #fef08a;
+  color: inherit;
+  padding: 0 0.08em;
 }
-.offer-expiry {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: rgba(34,197,94,0.08);
-  animation: gentle-pulse 4s ease-in-out infinite;
+
+.products-view-toolbar {
+  border-left: 4px solid #dc2626;
 }
 
 @media (max-width: 767px) {
-  .main-content > .space-y-6 {
-    gap: 10px;
-  }
-
-  .products-page-header {
-    display: none;
-  }
-
   .mobile-search-card {
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    border-color: #fecaca;
+    box-shadow: 0 10px 26px rgba(127, 29, 29, 0.1);
   }
 
   .mobile-search-head {
-    padding: 10px 12px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
 
   .mobile-search-copy h2 {
-    display: none;
-  }
-
-  .mobile-search-copy p:last-child {
-    margin-top: 2px;
-    font-size: 12px;
+    font-size: 1.2rem;
     line-height: 1.35;
   }
 
-  .mobile-search-chips {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .mobile-search-chips::-webkit-scrollbar {
-    display: none;
-  }
-
   .mobile-search-chips > * {
-    flex: 0 0 auto;
-    padding: 7px 10px;
-    border-radius: 999px;
-    white-space: nowrap;
+    min-height: 2.75rem;
   }
 
   .mobile-search-body {
-    padding: 10px 12px 12px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
 
-  .mobile-search-input input {
-    height: 52px;
-    min-width: 0;
-    padding-left: 56px;
-    font-size: 18px;
-  }
-
-  .mobile-search-input .h-9 {
-    height: 36px;
-    width: 36px;
+  .mobile-search-input {
+    border-width: 2px;
   }
 
   .mobile-clear-button {
-    height: 42px;
+    min-height: 3rem;
   }
 
   .products-view-toolbar {
-    padding: 10px 12px;
+    border-left-width: 0;
+    border-top: 4px solid #dc2626;
   }
-
-  .products-view-toolbar > div:first-child p:first-child {
-    display: none;
-  }
-
-  .products-view-toolbar > div:last-child {
-    display: none;
-  }
-}
-
-/* Para truncar texto largo */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Animaciones para toast */
-.toast-enter-active, .toast-leave-active {
-  transition: all 0.3s ease;
-}
-.toast-enter-from, .toast-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 </style>
