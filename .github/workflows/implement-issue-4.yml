@@ -1,0 +1,85 @@
+name: Implement issue 4
+
+on:
+  push:
+    branches:
+      - issue-4-decimal-quantities
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-4-decimal-quantities
+          fetch-depth: 0
+
+      - name: Apply issue 4 changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Central quantity rules.
+          service = Path('backend/api/services/cantidades.py')
+          service.write_text("""from decimal import Decimal, InvalidOperation, ROUND_HALF_UP\n\nfrom rest_framework import serializers\n\n\nCANTIDAD_QUANT = Decimal('0.001')\n\n\ndef validar_cantidad_articulo(articulo, cantidad):\n    \"\"\"Valida y normaliza una cantidad de pedido a 3 decimales.\n\n    Para artículos tipo A con mts2 informado, la cantidad representa m² y debe\n    corresponder a cajas completas (múltiplos exactos de mts2).\n    \"\"\"\n    try:\n        cantidad = Decimal(str(cantidad)).quantize(CANTIDAD_QUANT, rounding=ROUND_HALF_UP)\n    except (InvalidOperation, TypeError, ValueError) as exc:\n        raise serializers.ValidationError('Cantidad inválida.') from exc\n\n    if cantidad <= 0:\n        raise serializers.ValidationError('La cantidad debe ser mayor que cero.')\n\n    campoa1 = (articulo.campoa1 or '').lower()\n    mts2 = Decimal(str(articulo.mts2 or 0)).quantize(CANTIDAD_QUANT, rounding=ROUND_HALF_UP)\n    if campoa1 == 'a' and mts2 > 0:\n        if cantidad < mts2:\n            raise serializers.ValidationError(\n                f'La cantidad mínima para {articulo.clave} es {mts2} m² (1 caja).'
+            )\n        cajas = cantidad / mts2\n        if cajas != cajas.to_integral_value():\n            raise serializers.ValidationError(\n                f'La cantidad debe ser múltiplo de {mts2} m² por caja.'\n            )\n\n    return cantidad\n""", encoding='utf-8')
+
+          # PedidoItem quantity becomes DecimalField and gains a shared weight calculation.
+          path = Path('backend/api/models.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              "    cantidad = models.PositiveIntegerField(default=1)\n",
+              "    cantidad = models.DecimalField(max_digits=12, decimal_places=3, default=1)\n",
+              1,
+          )
+          old = """    def save(self, *args, **kwargs):\n        \"\"\"Calcula el subtotal antes de guardar.\"\"\"\n        self.subtotal = self.precio_unitario * self.cantidad\n        super().save(*args, **kwargs)\n\n    def __str__(self):\n"""
+          new = """    def save(self, *args, **kwargs):\n        \"\"\"Calcula el subtotal antes de guardar.\"\"\"\n        self.subtotal = self.precio_unitario * self.cantidad\n        super().save(*args, **kwargs)\n\n    def calcular_peso(self):\n        \"\"\"Calcula el peso respetando cantidades en m²/cajas.\"\"\"\n        cantidad = Decimal(str(self.cantidad))\n        peso_unitario = Decimal(str(self.articulo.peso or 0))\n        mts2 = Decimal(str(self.articulo.mts2 or 0))\n        if (self.articulo.campoa1 or '').lower() == 'a' and mts2 > 0:\n            return (cantidad / mts2) * peso_unitario\n        return cantidad * peso_unitario\n\n    def __str__(self):\n"""
+          # Decimal import already exists only in serializers, not models.
+          if 'from decimal import Decimal\n' not in text:
+              text = 'from decimal import Decimal\n' + text
+          if 'def calcular_peso(self):' not in text.split('class PedidoItem', 1)[1].split('class RegistroSesion', 1)[0]:
+              if old not in text:
+                  raise SystemExit('No se encontró PedidoItem.save')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Serializer validates quantity with the centralized rule.
+          path = Path('backend/api/serializers.py')
+          text = path.read_text(encoding='utf-8')
+          import_line = "from .constants import CLAVE_LEN_THRESHOLD\n"
+          if 'from .services.cantidades import validar_cantidad_articulo' not in text:
+              text = text.replace(
+                  import_line,
+                  import_line + 'from .services.cantidades import validar_cantidad_articulo\n',
+                  1,
+              )
+          marker = """    def get_articulo_detalle(self, obj):\n"""
+          validator = """    def validate(self, attrs):\n        articulo = attrs.get('articulo')\n        cantidad = attrs.get('cantidad')\n        if articulo is not None and cantidad is not None:\n            attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)\n        return attrs\n\n"""
+          item_block = text.split('class PedidoItemSerializer', 1)[1].split('class PedidoSerializer', 1)[0]
+          if 'validar_cantidad_articulo' not in item_block:
+              if marker not in text:
+                  raise SystemExit('No se encontró PedidoItemSerializer')
+              text = text.replace(marker, validator + marker, 1)
+          path.write_text(text, encoding='utf-8')
+
+          migration = Path('backend/api/migrations/0028_alter_pedidoitem_cantidad_decimal.py')
+          migration.write_text("""from django.db import migrations, models\n\n\nclass Migration(migrations.Migration):\n\n    dependencies = [\n        ('api', '0027_pedido_condicion_pago_cliente_snapshot'),\n    ]\n\n    operations = [\n        migrations.AlterField(\n            model_name='pedidoitem',\n            name='cantidad',\n            field=models.DecimalField(decimal_places=3, default=1, max_digits=12),\n        ),\n    ]\n""", encoding='utf-8')
+
+          test = Path('backend/api/tests/test_pedido_decimal_quantities.py')
+          test.write_text("""from datetime import date\nfrom decimal import Decimal\n\nfrom django.contrib.auth.models import User\nfrom django.test import TestCase\nfrom rest_framework.test import APIRequestFactory\n\nfrom api.models import Articulos, Cliente, FormaPago, Localidades\nfrom api.serializers import PedidoSerializer\n\n\nclass PedidoDecimalQuantityTests(TestCase):\n    def setUp(self):\n        self.user = User.objects.create_user(username='decimal', email='decimal@example.com')\n        self.localidad = Localidades.objects.create(codigo='0002', nombre='Capiovi', distancia=0, reparto='S')\n        self.forma = FormaPago.objects.create(id='00', nombre='Contado', descuento=0, punitorio=0)\n        Cliente.objects.create(\n            user=self.user, numero_cliente='126', lista_precio='1', nombre='Cliente Decimal',\n            codigo_localidad=self.localidad, condicion_pago=self.forma, tipo_responsable_iva='C'\n        )\n        self.caja = Articulos.objects.create(\n            clave='002.001', unidad='M2', nombre='Ceramico', peso=Decimal('20'), mts2=Decimal('1.500'),\n            campoa1='a', pblret1=Decimal('100'), pblrep1=Decimal('100'),\n            pblret4=Decimal('100'), pblrep4=Decimal('100'), ultact=date.today(),\n            visible='S', descripcion='Ceramico', iva=0,\n        )\n        self.unidad = Articulos.objects.create(\n            clave='002.002', unidad='UN', nombre='Unidad', peso=Decimal('2'),\n            pblret1=Decimal('50'), pblrep1=Decimal('50'), pblret4=Decimal('50'), pblrep4=Decimal('50'),\n            ultact=date.today(), visible='S', descripcion='Unidad', iva=0,\n        )\n\n    def _serializer(self, articulo, cantidad):\n        request = APIRequestFactory().post('/api/pedidos/')\n        request.user = self.user\n        return PedidoSerializer(\n            data={\n                'modalidad': 'retira', 'con_impuestos': False, 'condicion_pago': '00',\n                'items': [{'articulo': articulo.clave, 'cantidad': cantidad, 'precio_unitario': '1.00'}],\n            },\n            context={'request': request},\n        )\n\n    def test_metros_cuadrados_decimal_se_persisten_sin_perdida(self):\n        serializer = self._serializer(self.caja, '3.000')\n        serializer.is_valid(raise_exception=True)\n        pedido = serializer.save(user=self.user)\n        item = pedido.items.get()\n        self.assertEqual(item.cantidad, Decimal('3.000'))\n        self.assertEqual(item.subtotal, Decimal('300.00'))\n        self.assertEqual(item.calcular_peso(), Decimal('40.000'))\n\n    def test_rechaza_cantidad_que_no_es_multiplo_de_caja(self):\n        serializer = self._serializer(self.caja, '2.000')\n        self.assertFalse(serializer.is_valid())\n        self.assertIn('items', serializer.errors)\n\n    def test_cantidad_entera_sigue_funcionando(self):\n        serializer = self._serializer(self.unidad, '2')\n        serializer.is_valid(raise_exception=True)\n        pedido = serializer.save(user=self.user)\n        self.assertEqual(pedido.items.get().cantidad, Decimal('2.000'))\n""", encoding='utf-8')
+          PY
+
+      - name: Remove one-shot workflow and commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/implement-issue-4.yml
+          git add backend
+          git commit -m "feat: soportar cantidades decimales y reglas por caja (#4)"
+          git push origin HEAD:issue-4-decimal-quantities
