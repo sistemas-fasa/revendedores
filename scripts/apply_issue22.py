@@ -40,3 +40,5 @@ text = text.replace(close_marker, close_replacement, 1)
 text = text.replace('<FloatingCartButton />', '<FloatingCartButton class="xl:hidden" />', 1)
 
 path.write_text(text, encoding='utf-8')
+
+# Trigger intencional.
