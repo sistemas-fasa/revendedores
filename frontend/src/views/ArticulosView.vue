@@ -5,7 +5,7 @@ import api from '@/services/api'
 import * as XLSX from 'xlsx'
 
 import { cart } from '@/services/cart';
-import FloatingCartButton from '@/components/FloatingCartButton.vue';
+import MobileOrderDrawer from '@/components/MobileOrderDrawer.vue';
 import OrderSidebar from '@/components/OrderSidebar.vue';
 import ActionButton from '@/components/ui/ActionButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -914,7 +914,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="ui-page">
+  <div class="ui-page pb-20 xl:pb-0">
     <main class="main-content">
       <div
         class="grid items-start gap-4 transition-[grid-template-columns] duration-200"
@@ -1625,7 +1625,7 @@ onMounted(() => {
       </transition-group>
 
     <!-- Botón de Carrito Flotante (Arrastrable) -->
-    <FloatingCartButton class="xl:hidden" />
+    <MobileOrderDrawer />
 
     <!-- Modal de Agregar al Carrito -->
     <div v-if="modalCarrito.visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-4" @click.self="cerrarModalCarrito">
