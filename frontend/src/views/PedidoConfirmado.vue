@@ -1,164 +1,150 @@
 <template>
-  <div class="container mx-auto p-6 bg-gray-50 min-h-screen">
-    <div class="max-w-2xl mx-auto">
-      <!-- Header de confirmación -->
-      <div class="bg-white rounded-lg shadow-md p-8 text-center mb-6">
-        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+  <div class="ui-page min-h-screen bg-gray-50 px-4 py-8 sm:px-6">
+    <div class="mx-auto max-w-3xl space-y-6">
+      <section class="rounded-2xl border border-green-200 bg-white p-6 text-center shadow-sm sm:p-8">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700">
+          <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">¡Pedido Confirmado!</h1>
-        <p class="text-lg text-gray-600">Tu pedido ha sido procesado exitosamente</p>
-      </div>
+        <p class="text-sm font-bold uppercase tracking-wide text-green-700">Solicitud recibida por FASA</p>
+        <h1 class="mt-2 text-3xl font-black text-gray-950">Pedido enviado</h1>
+        <p class="mt-3 text-base text-gray-600">
+          Recibimos tu pedido y Ventas lo revisará para confirmar stock, precio final y condiciones comerciales.
+        </p>
+      </section>
 
-      <!-- Información del pedido -->
-      <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Detalles del Pedido</h2>
-        
-        <div class="border-b border-gray-200 pb-4 mb-4">
-          <div class="flex justify-between items-center">
-            <span class="text-gray-600">Número de Pedido:</span>
-            <span class="font-semibold text-gray-900">#{{ pedidoId }}</span>
-          </div>
-          <div class="flex justify-between items-center mt-2">
-            <span class="text-gray-600">Estado:</span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              CONFIRMADO
-            </span>
-          </div>
-          <div class="flex justify-between items-center mt-2">
-            <span class="text-gray-600">Fecha:</span>
-            <span class="text-gray-900">{{ formatDate(new Date()) }}</span>
-          </div>
-        </div>
+      <section v-if="loading" class="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <p class="font-semibold text-gray-600">Cargando datos del pedido...</p>
+      </section>
 
-        <!-- Mensaje sobre el correo -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <div class="flex items-start">
-            <div class="flex-shrink-0">
-              <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-              </svg>
+      <section v-else-if="errorMessage" class="rounded-2xl border border-yellow-200 bg-yellow-50 p-5 text-yellow-900">
+        <p class="font-bold">El pedido fue enviado.</p>
+        <p class="mt-1 text-sm">{{ errorMessage }}</p>
+      </section>
+
+      <template v-else-if="pedido">
+        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="text-sm font-semibold text-gray-500">Número de pedido</p>
+              <p class="mt-1 text-2xl font-black text-gray-950">#{{ pedido.id }}</p>
             </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-blue-800 mb-1">Confirmación por Correo</h3>
-              <p class="text-sm text-blue-700">
-                Estamos enviando un correo de confirmación con todos los detalles de tu pedido. 
-                <strong>Por favor, verifica tu casilla de entrada</strong> y también la carpeta de spam o correo no deseado.
-              </p>
-              <div v-if="emailStatus === 'sending'" class="mt-2 flex items-center text-xs text-blue-600">
-                <svg class="animate-spin -ml-1 mr-2 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Enviando correo de confirmación...
-              </div>
-              <div v-else-if="emailStatus === 'sent'" class="mt-2 flex items-center text-xs text-green-700">
-                <svg class="-ml-0.5 mr-2 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                Correo de confirmación enviado.
-              </div>
-              <div v-else-if="emailStatus === 'failed'" class="mt-2 flex items-center text-xs text-yellow-700">
-                <svg class="-ml-0.5 mr-2 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                </svg>
-                No pudimos confirmar el envío del correo.
-              </div>
+            <div class="rounded-xl bg-red-50 px-4 py-3 text-left sm:text-right">
+              <p class="text-xs font-bold uppercase text-red-700">Total estimado</p>
+              <p class="mt-1 text-2xl font-black text-red-800">$ {{ formatCurrency(pedido.total) }}</p>
             </div>
           </div>
-        </div>
 
-        <!-- Mensaje de advertencia si el correo falló (opcional) -->
-        <div v-if="warning" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-          <div class="flex items-start">
-            <div class="flex-shrink-0">
-              <svg class="w-5 h-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-              </svg>
+          <dl class="mt-6 grid gap-4 sm:grid-cols-2">
+            <div class="rounded-xl bg-gray-50 p-4">
+              <dt class="text-xs font-bold uppercase text-gray-500">Modalidad</dt>
+              <dd class="mt-1 font-bold text-gray-900">{{ modalidadLabel }}</dd>
             </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-yellow-800">Atención</h3>
-              <p class="text-sm text-yellow-700">{{ warning }}</p>
+            <div class="rounded-xl bg-gray-50 p-4">
+              <dt class="text-xs font-bold uppercase text-gray-500">Condición de pago</dt>
+              <dd class="mt-1 font-bold text-gray-900">{{ condicionPagoLabel }}</dd>
             </div>
+            <div class="rounded-xl bg-gray-50 p-4">
+              <dt class="text-xs font-bold uppercase text-gray-500">Impuestos</dt>
+              <dd class="mt-1 font-bold text-gray-900">{{ pedido.con_impuestos ? 'Con impuestos' : 'Sin impuestos' }}</dd>
+            </div>
+            <div class="rounded-xl bg-gray-50 p-4">
+              <dt class="text-xs font-bold uppercase text-gray-500">Estado de email</dt>
+              <dd class="mt-1 font-bold text-gray-900">{{ emailLabel }}</dd>
+            </div>
+          </dl>
+
+          <div v-if="pedido.cliente_snapshot?.observaciones" class="mt-4 rounded-xl border border-gray-200 p-4">
+            <p class="text-xs font-bold uppercase text-gray-500">Observaciones</p>
+            <p class="mt-2 whitespace-pre-line text-sm text-gray-800">{{ pedido.cliente_snapshot.observaciones }}</p>
           </div>
-        </div>
+        </section>
 
-        <!-- Información adicional -->
-        <div class="bg-gray-50 rounded-lg p-4">
-          <h3 class="text-sm font-medium text-gray-900 mb-2">¿Qué sigue?</h3>
-          <ul class="text-sm text-gray-600 space-y-1">
-            <li>• Recibirás un correo con la confirmación y detalles del pedido</li>
-            <li>• Nuestro equipo procesará tu pedido</li>
-            <li>• Te contactaremos para coordinar la entrega</li>
-            <li>• Si tienes dudas, puedes contactarnos</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Botones de acción -->
-      <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex flex-col sm:flex-row gap-4">
-          <router-link 
-            to="/pedidos" 
-            class="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition text-center font-medium"
-          >
-            Ver Mis Pedidos
-          </router-link>
-          <router-link 
-            to="/productos" 
-            class="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition text-center font-medium"
-          >
-            Seguir Comprando
-          </router-link>
-        </div>
-        
-        <div class="mt-4 text-center">
-          <p class="text-sm text-gray-500">
-            ¿Necesitas ayuda? 
-            <a href="mailto:ventas@tuempresa.com" class="text-red-600 hover:text-red-700 underline">
-              Contáctanos
-            </a>
+        <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-950">
+          <h2 class="font-black">Importante</h2>
+          <p class="mt-2 text-sm leading-6">
+            No se realizó ningún pago online. El importe mostrado es estimado. Ventas confirmará disponibilidad,
+            precio final, bonificaciones, forma de entrega y demás condiciones antes de cerrar la operación.
           </p>
-        </div>
+        </section>
+
+        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <h2 class="text-lg font-black text-gray-950">Resumen de productos</h2>
+          <div class="mt-4 divide-y divide-gray-100">
+            <div v-for="item in pedido.items || []" :key="item.id" class="flex gap-4 py-4">
+              <div class="min-w-0 flex-1">
+                <p class="font-bold text-gray-950">{{ item.articulo_detalle?.nombre || item.articulo }}</p>
+                <p class="mt-1 text-sm text-gray-500">Cantidad: {{ item.cantidad }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-sm text-gray-500">Subtotal estimado</p>
+                <p class="font-black text-gray-950">$ {{ formatCurrency(item.subtotal) }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <router-link to="/pedidos" class="rounded-xl bg-red-700 px-5 py-3 text-center font-bold text-white transition hover:bg-red-800">
+          Ver mis pedidos
+        </router-link>
+        <router-link to="/productos" class="rounded-xl border border-gray-300 bg-white px-5 py-3 text-center font-bold text-gray-800 transition hover:bg-gray-50">
+          Armar otro pedido
+        </router-link>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import api from '@/services/api'
 
-const route = useRoute();
-const pedidoId = ref(null);
-const warning = ref('');
-const emailStatus = ref('sending');
+const route = useRoute()
+const pedido = ref(null)
+const loading = ref(true)
+const errorMessage = ref('')
 
-onMounted(() => {
-  // Obtener el ID del pedido desde los parámetros de la ruta o query
-  pedidoId.value = route.params.id || route.query.pedido || 'N/A';
-  
-  // Verificar si hay advertencias sobre el correo
-  if (route.query.correoError) {
-    warning.value = 'El pedido se procesó correctamente, pero no pudimos enviarte un correo de confirmación. Por favor contáctanos si tienes dudas sobre tu pedido.';
-    emailStatus.value = 'failed';
-  } else {
-    emailStatus.value = 'sending';
-    setTimeout(() => {
-      emailStatus.value = 'sent';
-    }, 3500);
+const formatCurrency = (value) => new Intl.NumberFormat('es-AR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Number(value || 0))
+
+const modalidadLabel = computed(() => {
+  if (!pedido.value) return '-'
+  return pedido.value.modalidad === 'reparto' ? 'Reparto' : 'Retira en FASA'
+})
+
+const condicionPagoLabel = computed(() => {
+  if (!pedido.value) return '-'
+  return pedido.value.cliente_snapshot?.condicion_pago_nombre || pedido.value.condicion_pago || 'A confirmar'
+})
+
+const emailLabel = computed(() => {
+  if (!pedido.value) return '-'
+  if (pedido.value.email_cliente_estado === 'ENVIADO') return 'Copia enviada por email'
+  if (pedido.value.email_cliente_estado === 'FALLIDO') return 'Pedido guardado; email pendiente de reintento'
+  return 'En proceso de envío'
+})
+
+onMounted(async () => {
+  const pedidoId = route.params.id || route.query.pedido
+  if (!pedidoId) {
+    errorMessage.value = 'No pudimos identificar el número de pedido en esta pantalla.'
+    loading.value = false
+    return
   }
-});
 
-const formatDate = (date) => {
-  return new Intl.DateTimeFormat('es-ES', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
-};
+  try {
+    const response = await api.get(`/api/pedidos/${pedidoId}/`)
+    pedido.value = response.data
+  } catch (error) {
+    errorMessage.value = 'No pudimos cargar el detalle en este momento. Podés verlo desde “Mis pedidos”.'
+  } finally {
+    loading.value = false
+  }
+})
 </script>
