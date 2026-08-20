@@ -90,23 +90,22 @@ export const cart = reactive({
         saveCartToStorage(this.items); // Guardar después de limpiar
     },
 
+    checkoutInProgress: false,
+    checkoutIdempotencyKey: null,
+
     async checkout(onProgress = null) {
-        if (this.items.length === 0) {
-            throw new Error('El carrito está vacío');
+        if (this.items.length === 0) throw new Error('El carrito está vacío');
+        if (this.checkoutInProgress) return { success: false, message: 'El pedido ya se está enviando. Esperá un momento.', pedido: null };
+        this.checkoutInProgress = true;
+        if (!this.checkoutIdempotencyKey) {
+            this.checkoutIdempotencyKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         }
-
-        let pedido = null;
-
         try {
-            console.log('🛒 Iniciando checkout...', { itemCount: this.items.length });
-            
-            // Paso 1: Crear el pedido (esto ya guarda en backend)
-            if (onProgress) onProgress('Creando pedido...');
+            if (onProgress) onProgress('Enviando pedido...');
             const modalidad = localStorage.getItem('articulos_modalidad') || 'retira';
             const savedImpuestos = localStorage.getItem('articulos_con_impuestos');
             const con_impuestos = savedImpuestos === null ? true : savedImpuestos === 'true';
             const condicion_pago = localStorage.getItem('condicion_pago');
-
             const pedidoData = {
                 modalidad,
                 con_impuestos,
@@ -114,73 +113,28 @@ export const cart = reactive({
                 items: this.items.map(item => ({
                     articulo: item.articulo.clave,
                     cantidad: item.cantidad,
-                    precio_unitario: parseFloat(item.precio_unitario.toFixed(2)), // ✅ Redondeo
+                    precio_unitario: parseFloat(item.precio_unitario.toFixed(2)),
                 })),
             };
-
-            console.log('📦 Creando pedido...', pedidoData);
-            const response = await api.post('/api/pedidos/', pedidoData);
-            pedido = response.data;
-            console.log('✅ Pedido creado:', pedido);
-
-            // Paso 2: Confirmar el pedido
-            if (onProgress) onProgress('Enviando confirmación...');
-            console.log('📧 Confirmando pedido...', pedido.id);
-            console.time('⏱️ Tiempo de confirmación');
-            
-            try {
-                const confirmResponse = await api.post(`/api/pedidos/${pedido.id}/confirmar_pedido/`);
-                console.timeEnd('⏱️ Tiempo de confirmación');
-                console.log('✅ Pedido confirmado:', confirmResponse.data);
-                console.log('📊 Status de confirmación:', confirmResponse.status);
-                console.log('📝 Headers de respuesta:', confirmResponse.headers);
-
-                // Limpiar carrito SOLO si todo fue bien
-                this.clear();
-                console.log('🧹 Carrito limpiado');
-
-                return {
-                    success: true,
-                    message: confirmResponse.data.status || 'Pedido realizado con éxito.',
-                    pedido,
-                };
-            } catch (confirmError) {
-                console.timeEnd('⏱️ Tiempo de confirmación');
-                console.error('❌ Error en confirmación:', confirmError);
-                console.log('📋 Response data:', confirmError.response?.data);
-                console.log('📊 Response status:', confirmError.response?.status);
-                
-                // Si el pedido se creó pero falló la confirmación, devolver info útil
-                const confirmErrorMessage = confirmError.response?.data?.error || 
-                                           confirmError.response?.data?.detail ||
-                                           'Error al confirmar el pedido, pero el pedido fue creado';
-                
-                return {
-                    success: false,
-                    message: `Pedido #${pedido.id} creado pero ${confirmErrorMessage}`,
-                    pedido,
-                    error: confirmError
-                };
-            }
-
-        } catch (error) {
-            console.error('❌ Error en el proceso de checkout:', error);
-
-            // Si el pedido se creó pero falló confirmación/correo, podrías querer notificarlo
-            const errorMessage = error.response?.data?.error || 
-                                error.response?.data?.detail ||
-                                error.message ||
-                                'No se pudo procesar tu pedido. Intenta de nuevo.';
-
-            console.error('💥 Mensaje de error:', errorMessage);
-
-            // En lugar de lanzar excepción, devolver objeto con success: false
+            const response = await api.post('/api/pedidos/checkout/', pedidoData, {
+                headers: { 'Idempotency-Key': this.checkoutIdempotencyKey },
+            });
+            const pedido = response.data;
+            this.items = [];
+            saveCartToStorage(this.items);
+            this.checkoutIdempotencyKey = null;
             return {
-                success: false,
-                message: errorMessage,
-                pedido, // podrías querer mostrar el ID del pedido aunque falle correo
-                error: error
+                success: true,
+                message: pedido.idempotent_replay
+                    ? 'El pedido ya había sido enviado y fue recuperado correctamente.'
+                    : 'Pedido enviado correctamente.',
+                pedido,
             };
+        } catch (error) {
+            const errorMessage = error.response?.data?.error || error.response?.data?.detail || error.message || 'No se pudo procesar tu pedido. Intenta de nuevo.';
+            return { success: false, message: errorMessage, pedido: null, error };
+        } finally {
+            this.checkoutInProgress = false;
         }
     },
 });
