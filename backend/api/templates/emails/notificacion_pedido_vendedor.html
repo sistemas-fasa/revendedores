@@ -1,67 +1,48 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Nuevo Pedido Recibido</title>
-</head>
+<head><meta charset="UTF-8"><title>Nuevo pedido FASA</title></head>
 <body>
-    <div style="background:#f5f7fb; padding:24px 0; font-family:Arial, Helvetica, sans-serif; color:#111827;">
-        <div style="max-width:640px; margin:0 auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 8px 24px rgba(16,24,40,0.08);">
-            <div style="background:#0f172a; padding:18px 24px; color:#ffffff;">
-                <div style="font-size:18px; font-weight:700;">Ferretería Avenida</div>
-                <div style="font-size:13px; opacity:0.85;">Nuevo pedido recibido</div>
-            </div>
-
-            <div style="padding:24px;">
-                <h2 style="margin:0 0 8px; font-size:20px;">Se ha recibido un nuevo pedido</h2>
-                <p style="margin:0 0 16px; color:#4b5563;">Pedido <strong>#{{ pedido.id }}</strong> del cliente <strong>{% firstof pedido.cliente_snapshot.nombre pedido.user.username %}</strong>.</p>
-
-                <div style="display:block; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin-bottom:16px;">
-                    <div style="font-size:13px; color:#6b7280;">Cliente</div>
-                    <div style="font-size:14px; margin-top:6px;">
-                        <div><strong>Usuario:</strong> {% firstof pedido.cliente_snapshot.nombre pedido.user.username %}</div>
-                        <div><strong>Nombre:</strong> {% firstof pedido.cliente_snapshot.nombre pedido.user.get_full_name %}</div>
-                        <div><strong>Email:</strong> {% firstof pedido.cliente_snapshot.email pedido.user.email %}</div>
-                        <div><strong>Número de cliente:</strong> {% firstof pedido.cliente_snapshot.numero_cliente pedido.user.cliente.numero_cliente %}</div>
-                        <div><strong>Condición de pago:</strong> {% firstof pedido.cliente_snapshot.condicion_pago_nombre pedido.user.cliente.condicion_pago.nombre %}</div>
-                        <div><strong>Modalidad:</strong> {{ pedido.get_modalidad_display }}</div>
-                        <div><strong>Impuestos:</strong> {% if pedido.con_impuestos %}Con impuestos{% else %}Sin impuestos{% endif %}</div>
-                        <div><strong>Localidad de reparto:</strong> {% firstof pedido.cliente_snapshot.localidad pedido.user.cliente.codigo_localidad.nombre %}</div>
-                    </div>
-                </div>
-
-                <h3 style="font-size:16px; margin:0 0 8px;">Detalle de artículos</h3>
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
-                    <thead>
-                        <tr style="background:#f3f4f6;">
-                            <th align="left" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Artículo</th>
-                            <th align="center" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Cantidad</th>
-                            <th align="right" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Precio Unitario</th>
-                            <th align="right" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in pedido.items.all %}
-                        <tr>
-                            <td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">{{ item.articulo.nombre }} ({{ item.articulo.clave }})</td>
-                            <td align="center" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">{{ item.cantidad }}</td>
-                            <td align="right" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">${{ item.precio_unitario }}</td>
-                            <td align="right" style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">${{ item.subtotal }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-
-                <div style="margin-top:16px; background:#ecfeff; border:1px solid #cffafe; border-radius:8px; padding:12px 14px;">
-                    <div style="font-size:13px; color:#0f766e;">Total del pedido</div>
-                    <div style="font-size:18px; font-weight:700; color:#0f172a;">${{ pedido.total }}</div>
-                </div>
-            </div>
-
-            <div style="background:#f9fafb; padding:14px 24px; font-size:12px; color:#6b7280; text-align:center;">
-                Notificación interna automática.
-            </div>
-        </div>
+<div style="background:#f5f7fb;padding:24px 0;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(16,24,40,.08);">
+    <div style="background:#0f172a;padding:18px 24px;color:#fff;">
+      <div style="font-size:18px;font-weight:700;">Ferretería Avenida</div>
+      <div style="font-size:13px;opacity:.85;">Nuevo pedido para procesar</div>
     </div>
+    <div style="padding:24px;">
+      <h2 style="margin:0 0 6px;font-size:22px;">Pedido #{{ pedido.id }}</h2>
+      <p style="margin:0 0 16px;color:#4b5563;">Cliente <strong>{% firstof pedido.cliente_snapshot.numero_cliente "-" %} — {% firstof pedido.cliente_snapshot.nombre pedido.user.username %}</strong></p>
+
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+        <div><strong>Modalidad:</strong> {{ pedido.get_modalidad_display }}</div>
+        <div style="margin-top:5px;"><strong>Condición de pago:</strong> {% firstof pedido.cliente_snapshot.condicion_pago_nombre "A confirmar" %}</div>
+        <div style="margin-top:5px;"><strong>Impuestos:</strong> {% if pedido.con_impuestos %}Con impuestos{% else %}Sin impuestos{% endif %}</div>
+        {% if pedido.modalidad == 'reparto' %}<div style="margin-top:5px;"><strong>Entrega:</strong> {% firstof pedido.cliente_snapshot.localidad "Localidad a confirmar" %} — {% firstof pedido.cliente_snapshot.direccion "Dirección a confirmar" %}</div>{% endif %}
+      </div>
+
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+        <div><strong>Email:</strong> {% firstof pedido.cliente_snapshot.email pedido.user.email %}</div>
+        <div style="margin-top:5px;"><strong>CUIT:</strong> {% firstof pedido.cliente_snapshot.cuit "-" %}</div>
+        <div style="margin-top:5px;"><strong>Lista:</strong> {% firstof pedido.cliente_snapshot.lista_precio "-" %}</div>
+        <div style="margin-top:5px;"><strong>Observaciones:</strong> {% firstof pedido.cliente_snapshot.observaciones "Sin observaciones" %}</div>
+      </div>
+
+      <h3 style="font-size:16px;margin:0 0 8px;">Detalle del pedido</h3>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+        <thead><tr style="background:#f3f4f6;"><th align="left" style="padding:10px;border-bottom:1px solid #e5e7eb;">Artículo</th><th align="center" style="padding:10px;border-bottom:1px solid #e5e7eb;">Cantidad</th><th align="right" style="padding:10px;border-bottom:1px solid #e5e7eb;">Precio est.</th><th align="right" style="padding:10px;border-bottom:1px solid #e5e7eb;">Subtotal est.</th></tr></thead>
+        <tbody>
+        {% for item in pedido.items.all %}
+          <tr><td style="padding:10px;border-bottom:1px solid #f1f5f9;">{{ item.articulo.nombre }} ({{ item.articulo.clave }})</td><td align="center" style="padding:10px;border-bottom:1px solid #f1f5f9;">{{ item.cantidad }}</td><td align="right" style="padding:10px;border-bottom:1px solid #f1f5f9;">${{ item.precio_unitario }}</td><td align="right" style="padding:10px;border-bottom:1px solid #f1f5f9;">${{ item.subtotal }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <div style="margin-top:16px;background:#ecfeff;border:1px solid #cffafe;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:13px;color:#0f766e;">Total estimado</div>
+        <div style="font-size:20px;font-weight:700;color:#0f172a;">${{ pedido.total }}</div>
+      </div>
+    </div>
+    <div style="background:#f9fafb;padding:14px 24px;font-size:12px;color:#6b7280;text-align:center;">Notificación interna automática. El pedido requiere revisión comercial antes de confirmarse al cliente.</div>
+  </div>
+</div>
 </body>
 </html>
