@@ -1,0 +1,32 @@
+name: Apply issue 24
+
+on:
+  push:
+    branches:
+      - issue-24-quick-code-entry
+    paths:
+      - scripts/apply_issue24.py
+      - .github/workflows/apply-issue24.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-24-quick-code-entry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/apply_issue24.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-issue24.yml
+          git add frontend
+          git commit -m "feat: carga rápida por código (#24)"
+          git push origin HEAD:issue-24-quick-code-entry
