@@ -11,6 +11,7 @@ from django.db.models import Count
 
 from .models import Articulos, BonificacionCliente, Cliente, FormaPago, Favorito, Busqueda, Pedido, PedidoItem, ExportEvent
 from .constants import CLAVE_LEN_THRESHOLD
+from .services.cantidades import validar_cantidad_articulo
 from django.conf import settings
 
 class PedidoItemSerializer(serializers.ModelSerializer):
@@ -21,6 +22,13 @@ class PedidoItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'articulo', 'articulo_detalle', 'cantidad', 'precio_unitario', 'subtotal']
         read_only_fields = ('subtotal',)
     
+    def validate(self, attrs):
+        articulo = attrs.get('articulo')
+        cantidad = attrs.get('cantidad')
+        if articulo is not None and cantidad is not None:
+            attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)
+        return attrs
+
     def get_articulo_detalle(self, obj):
         """Devuelve información detallada del artículo."""
         return {
