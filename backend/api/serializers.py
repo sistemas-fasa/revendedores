@@ -26,7 +26,10 @@ class PedidoItemSerializer(serializers.ModelSerializer):
         articulo = attrs.get('articulo')
         cantidad = attrs.get('cantidad')
         if articulo is not None and cantidad is not None:
-            attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)
+            try:
+                attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({'cantidad': exc.detail}) from exc
         return attrs
 
     def get_articulo_detalle(self, obj):
