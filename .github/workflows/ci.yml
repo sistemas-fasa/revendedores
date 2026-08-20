@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - ui-venta-rapida
+      - 'issue-*'
+      - 'feature/**'
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DJANGO_SETTINGS_MODULE: backend.settings_ci
+      SECRET_KEY: ci-secret-key
+      DEBUG: 'False'
+      DB_ENGINE: django.db.backends.sqlite3
+      DB_NAME: test.sqlite3
+      DB_USER: ''
+      DB_PASSWORD: ''
+      DB_HOST: ''
+      DB_PORT: ''
+      FASA_DB_ENGINE: django.db.backends.sqlite3
+      FASA_DB_NAME: test_fasa.sqlite3
+      FASA_DB_USER: ''
+      FASA_DB_PASSWORD: ''
+      FASA_DB_HOST: ''
+      FASA_DB_PORT: ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Run backend tests
+        run: python manage.py test api.tests --verbosity 2
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
