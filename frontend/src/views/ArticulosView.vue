@@ -1490,6 +1490,7 @@ onMounted(() => {
             </button>
           </div>
         </div>
+        </div>
 
         <OrderSidebar v-model:collapsed="cartSidebarCollapsed" />
       </div>
