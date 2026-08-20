@@ -14,10 +14,17 @@ class PedidoNotificationTests(TestCase):
         self.pedido = Pedido.objects.create(
             user=self.user,
             estado='CONFIRMADO',
+            total='1250.50',
+            modalidad='reparto',
+            con_impuestos=True,
             cliente_snapshot={
                 'numero_cliente': '00125',
                 'nombre': 'CLIENTE PRUEBA',
                 'email': 'cliente@fasa.test',
+                'condicion_pago_nombre': 'Cuenta corriente 30 días',
+                'localidad': 'Puerto Rico',
+                'direccion': 'Av. San Martín 123',
+                'observaciones': 'Entregar por portón lateral',
             },
         )
 
@@ -30,9 +37,19 @@ class PedidoNotificationTests(TestCase):
         self.assertEqual(self.pedido.email_cliente_intentos, 1)
         self.assertEqual(self.pedido.email_ventas_intentos, 1)
         self.assertEqual(mocked.call_count, 2)
-        asunto_ventas = mocked.call_args_list[1].args[0]
+
+        llamada_cliente = mocked.call_args_list[0]
+        self.assertEqual(llamada_cliente.args[0], f'[FASA] Pedido recibido #{self.pedido.id}')
+        self.assertIn('No se realizó ningún pago online', llamada_cliente.args[1])
+        self.assertIn('Ventas confirmará stock, precio final y condiciones', llamada_cliente.args[1])
+
+        llamada_ventas = mocked.call_args_list[1]
+        asunto_ventas = llamada_ventas.args[0]
         self.assertIn('[FASA] Nuevo pedido #', asunto_ventas)
         self.assertIn('Cliente 00125', asunto_ventas)
+        self.assertIn('CLIENTE PRUEBA', asunto_ventas)
+        self.assertIn('Entregar por portón lateral', llamada_ventas.args[1])
+        self.assertIn('Reparto', llamada_ventas.args[1])
 
     @patch('api.services.notificaciones_pedido.send_mail', side_effect=RuntimeError('SMTP fuera de servicio'))
     def test_fallo_queda_persistido(self, _mocked):
