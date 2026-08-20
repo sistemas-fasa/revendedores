@@ -37,7 +37,7 @@
     "vite-plugin-vue-devtools": "^8.0.0",
     "eslint": "^8.50.0",
     "eslint-plugin-vue": "^9.17.0",
-    "eslint-config-prettier": "^9.2.0",
+    "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.0.0",
     "eslint-plugin-prettier": "^5.1.0"
   }

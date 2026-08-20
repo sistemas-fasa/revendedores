@@ -1,0 +1,15 @@
+node_modules
+.venv
+venv
+dist
+dev-dist
+__pycache__
+*.pyc
+.git
+.codegraph
+.cursor
+*.log
+logs
+media
+.idea
+.vscode

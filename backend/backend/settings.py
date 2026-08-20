@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = config('DEBUG', default=False, cast=bool)
 SECRET_KEY = config('SECRET_KEY')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.0.200', 'ventas.ferreteriaavenida.com.ar', '186.5.245.12']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.0.200', '192.168.0.195', 'ventas.ferreteriaavenida.com.ar', '186.5.245.12']
 
 
 # Application definition
@@ -202,6 +202,17 @@ WHATSAPP_VERIFY_TOKEN = config('WHATSAPP_VERIFY_TOKEN', default='')
 WHATSAPP_ACCESS_TOKEN = config('WHATSAPP_ACCESS_TOKEN', default='')
 WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='')
 WHATSAPP_BOT_USERNAME = config('WHATSAPP_BOT_USERNAME', default='')
+BOT_AGENT_ENABLED = config('BOT_AGENT_ENABLED', default=False, cast=bool)
+BOT_AGENT_TEST_CHAT_ENABLED = config('BOT_AGENT_TEST_CHAT_ENABLED', default=False, cast=bool)
+
+# OpenRouter bot fallback
+OPENROUTER_API_KEY = config('OPENROUTER_API_KEY', default='')
+OPENROUTER_MODEL = config('OPENROUTER_MODEL', default='openrouter/free')
+OPENROUTER_BASE_URL = config('OPENROUTER_BASE_URL', default='https://openrouter.ai/api/v1')
+OPENROUTER_REFERER = config('OPENROUTER_REFERER', default='http://localhost/revendedores')
+OPENROUTER_APP_TITLE = config('OPENROUTER_APP_TITLE', default='Revendedores Bot')
+OPENROUTER_TIMEOUT = config('OPENROUTER_TIMEOUT', default=30, cast=int)
+OPENROUTER_MAX_TOKENS = config('OPENROUTER_MAX_TOKENS', default=180, cast=int)
 
 # Admins que recibirán los errores
 ADMINS = [
