@@ -25,7 +25,7 @@ const saveCartToStorage = (items) => {
         // Sincronizar con el backend
         sincronizarConBackend(items);
     } catch (error) {
-        console.error('❌ Error al guardar carrito desde localStorage:', error);
+        console.error('❌ Error al guardar carrito en localStorage:', error);
     }
 };
 
@@ -112,8 +112,7 @@ export const cart = reactive({
                 items: this.items.map(item => ({
                     articulo: item.articulo.clave,
                     cantidad: item.cantidad,
-                    // Compatibilidad temporal: el backend NO confía en este valor y lo recalcula.
-                    precio_unitario: parseFloat(item.precio_unitario.toFixed(2)),
+                    precio_unitario: parseFloat(item.precio_unitario.toFixed(2)), // ✅ Redondeo
                 })),
             };
 
