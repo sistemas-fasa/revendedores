@@ -46,11 +46,34 @@ class PedidoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Pedido
-        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'items']
-        read_only_fields = ('user', 'fecha_creacion', 'total', 'estado_display', 'usuario_nombre')
+        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'condicion_pago', 'cliente_snapshot', 'items']
+        read_only_fields = ('user', 'fecha_creacion', 'total', 'estado_display', 'usuario_nombre', 'cliente_snapshot')
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
+        user = validated_data.get('user')
+
+        try:
+            cliente = user.cliente
+        except (AttributeError, Cliente.DoesNotExist) as exc:
+            raise serializers.ValidationError(
+                {'detail': 'El usuario no tiene un cliente asociado.'}
+            ) from exc
+
+        condicion_pago = validated_data.get('condicion_pago') or cliente.condicion_pago
+        validated_data['condicion_pago'] = condicion_pago
+        validated_data['cliente_snapshot'] = {
+            'numero_cliente': cliente.numero_cliente,
+            'nombre': cliente.nombre,
+            'email': user.email,
+            'localidad': cliente.codigo_localidad.nombre if cliente.codigo_localidad_id else '',
+            'direccion': cliente.direccion,
+            'cuit': cliente.cuit or '',
+            'lista_precio': cliente.lista_precio,
+            'condicion_pago_id': condicion_pago.id if condicion_pago else '',
+            'condicion_pago_nombre': condicion_pago.nombre if condicion_pago else '',
+        }
+
         pedido = Pedido.objects.create(**validated_data)
         total_pedido = 0
 

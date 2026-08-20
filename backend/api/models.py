@@ -183,6 +183,14 @@ class Pedido(models.Model):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     modalidad = models.CharField(max_length=10, choices=MODALIDAD_CHOICES, default='retira')
     con_impuestos = models.BooleanField(default=True)
+    condicion_pago = models.ForeignKey(
+        FormaPago,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pedidos',
+    )
+    cliente_snapshot = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.user.username} ({self.get_estado_display()})"

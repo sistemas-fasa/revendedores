@@ -30,7 +30,7 @@ def recalcular_precio_pedido_item(sender, instance, **kwargs):
         cliente=cliente,
         modalidad=instance.pedido.modalidad,
         con_impuestos=instance.pedido.con_impuestos,
-        condicion_pago_id=cliente.condicion_pago_id,
+        condicion_pago_id=instance.pedido.condicion_pago_id or cliente.condicion_pago_id,
     )
 
     precio = Decimal(str(precio)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

@@ -13,7 +13,7 @@
             </div>
 
             <div style="padding:24px;">
-                <h2 style="margin:0 0 8px; font-size:22px;">¡Gracias por tu pedido, {{ pedido.user.first_name }}!</h2>
+                <h2 style="margin:0 0 8px; font-size:22px;">¡Gracias por tu pedido, {% firstof pedido.cliente_snapshot.nombre pedido.user.first_name %}!</h2>
                 <p style="margin:0 0 16px; color:#4b5563;">Tu pedido <strong>#{{ pedido.id }}</strong> ha sido confirmado y está siendo procesado.</p>
 
                 <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin-bottom:16px;">
