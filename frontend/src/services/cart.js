@@ -112,7 +112,6 @@ export const cart = reactive({
                 items: this.items.map(item => ({
                     articulo: item.articulo.clave,
                     cantidad: item.cantidad,
-                    precio_unitario: parseFloat(item.precio_unitario.toFixed(2)), // ✅ Redondeo
                 })),
             };
 
