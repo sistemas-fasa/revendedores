@@ -39,6 +39,9 @@ def enviar_notificaciones_pedido(pedido_id, destinos=('cliente', 'ventas')):
     snapshot = pedido.cliente_snapshot or {}
     numero_cliente = snapshot.get('numero_cliente') or ''
     nombre_cliente = snapshot.get('nombre') or pedido.user.username
+    modalidad = pedido.get_modalidad_display()
+    condicion = snapshot.get('condicion_pago_nombre') or 'A confirmar'
+    observaciones = snapshot.get('observaciones') or 'Sin observaciones'
     resultados = {}
 
     for destino in destinos:
@@ -48,16 +51,24 @@ def enviar_notificaciones_pedido(pedido_id, destinos=('cliente', 'ventas')):
                 destinatario = snapshot.get('email') or pedido.user.email
                 if not destinatario:
                     raise ValueError('El cliente no tiene email configurado.')
-                subject = f'Confirmación de tu Pedido #{pedido.id}'
+                subject = f'[FASA] Pedido recibido #{pedido.id}'
                 html = render_to_string('emails/confirmacion_pedido_cliente.html', {'pedido': pedido})
-                plain = f'Tu pedido #{pedido.id} fue recibido. Total estimado: ${pedido.total}'
+                plain = (
+                    f'FASA recibió tu pedido #{pedido.id}. Total estimado: ${pedido.total}. '
+                    f'Modalidad: {modalidad}. Condición de pago: {condicion}. '
+                    'No se realizó ningún pago online. Ventas confirmará stock, precio final y condiciones.'
+                )
             elif destino == 'ventas':
                 destinatario = settings.EMAIL_RECIPIENT
                 if not destinatario:
                     raise ValueError('EMAIL_RECIPIENT no está configurado.')
                 subject = f'[FASA] Nuevo pedido #{pedido.id} — Cliente {numero_cliente} — {nombre_cliente}'
                 html = render_to_string('emails/notificacion_pedido_vendedor.html', {'pedido': pedido})
-                plain = f'Nuevo pedido #{pedido.id} de {nombre_cliente}. Total estimado: ${pedido.total}'
+                plain = (
+                    f'Nuevo pedido #{pedido.id} de {nombre_cliente} (cliente {numero_cliente}). '
+                    f'Total estimado: ${pedido.total}. Modalidad: {modalidad}. '
+                    f'Condición: {condicion}. Observaciones: {observaciones}.'
+                )
             else:
                 raise ValueError(f'Destino de notificación desconocido: {destino}')
 
