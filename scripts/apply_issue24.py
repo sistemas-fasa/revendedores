@@ -29,3 +29,5 @@ if insert_marker not in text:
 text = text.replace(insert_marker, panel + insert_marker, 1)
 
 path.write_text(text, encoding='utf-8')
+
+# Trigger intencional.
