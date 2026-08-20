@@ -1,0 +1,39 @@
+name: Fix issue 4 crossfork
+
+on:
+  push:
+    branches:
+      - issue-4-crossfork-v2
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-4-crossfork-v2
+          fetch-depth: 0
+      - name: Keep cantidad validation field-specific
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/api/serializers.py')
+          t = p.read_text(encoding='utf-8')
+          old = """    def validate(self, attrs):\n        articulo = attrs.get('articulo')\n        cantidad = attrs.get('cantidad')\n        if articulo is not None and cantidad is not None:\n            attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)\n        return attrs\n"""
+          new = """    def validate(self, attrs):\n        articulo = attrs.get('articulo')\n        cantidad = attrs.get('cantidad')\n        if articulo is not None and cantidad is not None:\n            try:\n                attrs['cantidad'] = validar_cantidad_articulo(articulo, cantidad)\n            except serializers.ValidationError as exc:\n                raise serializers.ValidationError({'cantidad': exc.detail}) from exc\n        return attrs\n"""
+          if old not in t:
+              raise SystemExit('No se encontro el bloque esperado de validacion')
+          p.write_text(t.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-issue4-crossfork.yml
+          git add backend/api/serializers.py
+          git commit -m "fix: mantener error de cantidad asociado al campo (#4)"
+          git push origin HEAD:issue-4-crossfork-v2
