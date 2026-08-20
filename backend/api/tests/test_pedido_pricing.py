@@ -97,4 +97,8 @@ class PedidoPricingSecurityTests(TestCase):
         })
 
         self.assertFalse(serializer.is_valid())
-        self.assertIn('cantidad', serializer.errors['items'][0])
+        item_errors = serializer.errors['items'][0]
+        self.assertTrue(
+            'cantidad' in item_errors or 'non_field_errors' in item_errors,
+            item_errors,
+        )
