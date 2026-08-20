@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 
 import { cart } from '@/services/cart';
 import MobileOrderDrawer from '@/components/MobileOrderDrawer.vue';
+import QuickLoadPanel from '@/components/QuickLoadPanel.vue';
 import OrderSidebar from '@/components/OrderSidebar.vue';
 import ActionButton from '@/components/ui/ActionButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -46,6 +47,7 @@ const error = ref(null)
 const searchQuery = ref('')
 const searchInputRef = ref(null)
 const cartSidebarCollapsed = ref(localStorage.getItem('order_sidebar_collapsed') === '1')
+const showQuickLoad = ref(false)
 
 // Autocompletado
 const showSuggestions = ref(false)
@@ -937,7 +939,7 @@ onMounted(() => {
               <RouterLink to="/productos?oferta=1" class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-green-800 hover:bg-green-100">Ofertas</RouterLink>
               <RouterLink to="/productos?discontinuados=1" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 hover:bg-amber-100">Discontinuados</RouterLink>
               <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-700 hover:bg-gray-50" @click="clearSearch">Ver todos</button>
-              <button type="button" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600 hover:bg-gray-100" @click="showNotification('Carga rápida se habilitará en la próxima etapa', 'info')">Carga rápida</button>
+              <button type="button" class="rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-white hover:bg-black" @click="showQuickLoad = true">Carga rápida</button>
             </div>
           </div>
           <div class="mobile-search-body px-4 py-3 sm:px-5">
@@ -1494,6 +1496,14 @@ onMounted(() => {
 
         <OrderSidebar v-model:collapsed="cartSidebarCollapsed" />
       </div>
+
+      <QuickLoadPanel
+        v-model:open="showQuickLoad"
+        :modalidad="modalidad"
+        :con-impuestos="conImpuestos"
+        :condicion-pago="condicionPago"
+        @added="showNotification($event, 'success')"
+      />
 
       <!-- Modal de filtros (móvil) -->
       <div
