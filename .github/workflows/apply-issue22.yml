@@ -1,0 +1,32 @@
+name: Apply issue 22
+
+on:
+  push:
+    branches:
+      - issue-22-order-sidebar
+    paths:
+      - scripts/apply_issue22.py
+      - .github/workflows/apply-issue22.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-22-order-sidebar
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/apply_issue22.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-issue22.yml
+          git add frontend
+          git commit -m "feat: carrito lateral persistente en desktop (#22)"
+          git push origin HEAD:issue-22-order-sidebar
