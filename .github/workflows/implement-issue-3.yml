@@ -1,0 +1,116 @@
+name: Implement issue 3
+
+on:
+  push:
+    branches:
+      - issue-3-commercial-snapshot
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: issue-3-commercial-snapshot
+          fetch-depth: 0
+
+      - name: Apply issue 3 changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Pedido: persist commercial condition + immutable customer snapshot.
+          path = Path('backend/api/models.py')
+          text = path.read_text(encoding='utf-8')
+          needle = "    con_impuestos = models.BooleanField(default=True)\n"
+          replacement = """    con_impuestos = models.BooleanField(default=True)\n    condicion_pago = models.ForeignKey(\n        FormaPago,\n        on_delete=models.SET_NULL,\n        null=True,\n        blank=True,\n        related_name='pedidos',\n    )\n    cliente_snapshot = models.JSONField(default=dict, blank=True)\n"""
+          if 'cliente_snapshot = models.JSONField' not in text:
+              if needle not in text:
+                  raise SystemExit('No se encontró punto de inserción en Pedido')
+              text = text.replace(needle, replacement, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Serializer: selected payment condition belongs to the order and snapshot is built at creation.
+          path = Path('backend/api/serializers.py')
+          text = path.read_text(encoding='utf-8')
+          old_fields = "        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'items']\n"
+          new_fields = "        fields = ['id', 'user', 'usuario_nombre', 'fecha_creacion', 'estado', 'estado_display', 'total', 'modalidad', 'con_impuestos', 'condicion_pago', 'cliente_snapshot', 'items']\n"
+          if old_fields in text:
+              text = text.replace(old_fields, new_fields, 1)
+          old_ro = "        read_only_fields = ('user', 'fecha_creacion', 'total', 'estado_display', 'usuario_nombre')\n"
+          new_ro = "        read_only_fields = ('user', 'fecha_creacion', 'total', 'estado_display', 'usuario_nombre', 'cliente_snapshot')\n"
+          if old_ro in text:
+              text = text.replace(old_ro, new_ro, 1)
+          old_create = """    def create(self, validated_data):\n        items_data = validated_data.pop('items')\n        pedido = Pedido.objects.create(**validated_data)\n        total_pedido = 0\n"""
+          new_create = """    def create(self, validated_data):\n        items_data = validated_data.pop('items')\n        user = validated_data.get('user')\n\n        try:\n            cliente = user.cliente\n        except (AttributeError, Cliente.DoesNotExist) as exc:\n            raise serializers.ValidationError(\n                {'detail': 'El usuario no tiene un cliente asociado.'}\n            ) from exc\n\n        condicion_pago = validated_data.get('condicion_pago') or cliente.condicion_pago\n        validated_data['condicion_pago'] = condicion_pago\n        validated_data['cliente_snapshot'] = {\n            'numero_cliente': cliente.numero_cliente,\n            'nombre': cliente.nombre,\n            'email': user.email,\n            'localidad': cliente.codigo_localidad.nombre if cliente.codigo_localidad_id else '',\n            'direccion': cliente.direccion,\n            'cuit': cliente.cuit or '',\n            'lista_precio': cliente.lista_precio,\n            'condicion_pago_id': condicion_pago.id if condicion_pago else '',\n            'condicion_pago_nombre': condicion_pago.nombre if condicion_pago else '',\n        }\n\n        pedido = Pedido.objects.create(**validated_data)\n        total_pedido = 0\n"""
+          if 'validated_data[\'cliente_snapshot\']' not in text:
+              if old_create not in text:
+                  raise SystemExit('No se encontró create de PedidoSerializer')
+              text = text.replace(old_create, new_create, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Price authority from #2 must use the payment condition frozen in the order.
+          path = Path('backend/api/signals.py')
+          text = path.read_text(encoding='utf-8')
+          old = "        condicion_pago_id=cliente.condicion_pago_id,\n"
+          new = "        condicion_pago_id=instance.pedido.condicion_pago_id or cliente.condicion_pago_id,\n"
+          if old in text:
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Frontend sends the same payment condition used to display prices.
+          path = Path('frontend/src/services/cart.js')
+          text = path.read_text(encoding='utf-8')
+          old = """            const savedImpuestos = localStorage.getItem('articulos_con_impuestos');\n            const con_impuestos = savedImpuestos === null ? true : savedImpuestos === 'true';\n\n            const pedidoData = {\n                modalidad,\n                con_impuestos,\n"""
+          new = """            const savedImpuestos = localStorage.getItem('articulos_con_impuestos');\n            const con_impuestos = savedImpuestos === null ? true : savedImpuestos === 'true';\n            const condicion_pago = localStorage.getItem('condicion_pago');\n\n            const pedidoData = {\n                modalidad,\n                con_impuestos,\n                ...(condicion_pago ? { condicion_pago } : {}),\n"""
+          if "const condicion_pago = localStorage.getItem('condicion_pago');" not in text:
+              if old not in text:
+                  raise SystemExit('No se encontró payload de checkout')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Seller email reads the immutable commercial snapshot.
+          path = Path('backend/api/templates/emails/notificacion_pedido_vendedor.html')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '{{ pedido.user.username }}': '{% firstof pedido.cliente_snapshot.nombre pedido.user.username %}',
+              '{{ pedido.user.first_name }} {{ pedido.user.last_name }}': '{% firstof pedido.cliente_snapshot.nombre pedido.user.get_full_name %}',
+              '{{ pedido.user.email }}': '{% firstof pedido.cliente_snapshot.email pedido.user.email %}',
+              '{{ pedido.user.cliente.numero_cliente }}': '{% firstof pedido.cliente_snapshot.numero_cliente pedido.user.cliente.numero_cliente %}',
+              '{{ pedido.user.cliente.condicion_pago.nombre }}': '{% firstof pedido.cliente_snapshot.condicion_pago_nombre pedido.user.cliente.condicion_pago.nombre %}',
+              '{{ pedido.user.cliente.codigo_localidad.nombre }}': '{% firstof pedido.cliente_snapshot.localidad pedido.user.cliente.codigo_localidad.nombre %}',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+
+          # Client email greeting also prefers the snapshot.
+          path = Path('backend/api/templates/emails/confirmacion_pedido_cliente.html')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '¡Gracias por tu pedido, {{ pedido.user.first_name }}!',
+              '¡Gracias por tu pedido, {% firstof pedido.cliente_snapshot.nombre pedido.user.first_name %}!'
+          )
+          path.write_text(text, encoding='utf-8')
+
+          migration = Path('backend/api/migrations/0027_pedido_condicion_pago_cliente_snapshot.py')
+          migration.write_text("""from django.db import migrations, models\nimport django.db.models.deletion\n\n\nclass Migration(migrations.Migration):\n\n    dependencies = [\n        ('api', '0026_bot_conversation_log'),\n    ]\n\n    operations = [\n        migrations.AddField(\n            model_name='pedido',\n            name='cliente_snapshot',\n            field=models.JSONField(blank=True, default=dict),\n        ),\n        migrations.AddField(\n            model_name='pedido',\n            name='condicion_pago',\n            field=models.ForeignKey(\n                blank=True,\n                null=True,\n                on_delete=django.db.models.deletion.SET_NULL,\n                related_name='pedidos',\n                to='api.formapago',\n            ),\n        ),\n    ]\n""", encoding='utf-8')
+
+          test = Path('backend/api/tests/test_pedido_snapshot.py')
+          test.write_text("""from datetime import date\nfrom decimal import Decimal\n\nfrom django.contrib.auth.models import User\nfrom django.test import TestCase\nfrom rest_framework.test import APIRequestFactory\n\nfrom api.models import Articulos, Cliente, FormaPago, Localidades, Pedido\nfrom api.serializers import PedidoSerializer\n\n\nclass PedidoSnapshotTests(TestCase):\n    def setUp(self):\n        self.user = User.objects.create_user(\n            username='cliente-snapshot',\n            email='original@example.com',\n            password='test',\n        )\n        self.localidad = Localidades.objects.create(\n            codigo='0001', nombre='Puerto Rico', distancia=0, reparto='S'\n        )\n        self.contado = FormaPago.objects.create(\n            id='00', nombre='Contado', descuento=Decimal('0'), punitorio=Decimal('0')\n        )\n        self.cuenta = FormaPago.objects.create(\n            id='30', nombre='Cuenta corriente 30 días', descuento=Decimal('0'), punitorio=Decimal('10')\n        )\n        self.cliente = Cliente.objects.create(\n            user=self.user,\n            numero_cliente='125',\n            lista_precio='1',\n            nombre='Cliente Original SRL',\n            codigo_localidad=self.localidad,\n            condicion_pago=self.contado,\n            tipo_responsable_iva='C',\n            direccion='Av. Siempre Viva 123',\n            cuit='30-00000000-0',\n        )\n        self.articulo = Articulos.objects.create(\n            clave='001.001', unidad='UN', nombre='Articulo test', peso=Decimal('1'),\n            pblret1=Decimal('100'), pblrep1=Decimal('100'),\n            pblret4=Decimal('100'), pblrep4=Decimal('100'),\n            ultact=date.today(), visible='S', descripcion='Test', iva=Decimal('0'),\n        )\n\n    def _crear_pedido(self):\n        request = APIRequestFactory().post('/api/pedidos/')\n        request.user = self.user\n        serializer = PedidoSerializer(\n            data={\n                'modalidad': 'retira',\n                'con_impuestos': False,\n                'condicion_pago': self.cuenta.id,\n                'items': [{\n                    'articulo': self.articulo.clave,\n                    'cantidad': 1,\n                    'precio_unitario': '1.00',\n                }],\n            },\n            context={'request': request},\n        )\n        serializer.is_valid(raise_exception=True)\n        return serializer.save(user=self.user)\n\n    def test_persiste_condicion_y_snapshot(self):\n        pedido = self._crear_pedido()\n        self.assertEqual(pedido.condicion_pago_id, '30')\n        self.assertEqual(pedido.cliente_snapshot['numero_cliente'], '00125')\n        self.assertEqual(pedido.cliente_snapshot['nombre'], 'Cliente Original SRL')\n        self.assertEqual(pedido.cliente_snapshot['email'], 'original@example.com')\n        self.assertEqual(pedido.cliente_snapshot['condicion_pago_id'], '30')\n        self.assertEqual(pedido.cliente_snapshot['condicion_pago_nombre'], 'Cuenta corriente 30 días')\n        # El precio debe usar la condición persistida: 100 + 10% punitorio.\n        self.assertEqual(pedido.items.get().precio_unitario, Decimal('110.00'))\n\n    def test_snapshot_no_cambia_si_cambia_el_cliente(self):\n        pedido = self._crear_pedido()\n        self.cliente.nombre = 'Cliente Renombrado SA'\n        self.cliente.condicion_pago = self.contado\n        self.cliente.save()\n        self.user.email = 'nuevo@example.com'\n        self.user.save()\n\n        pedido.refresh_from_db()\n        self.assertEqual(pedido.cliente_snapshot['nombre'], 'Cliente Original SRL')\n        self.assertEqual(pedido.cliente_snapshot['email'], 'original@example.com')\n        self.assertEqual(pedido.cliente_snapshot['condicion_pago_id'], '30')\n\n    def test_pedido_historico_sin_snapshot_sigue_siendo_legible(self):\n        pedido = Pedido.objects.create(user=self.user, modalidad='retira', con_impuestos=True)\n        self.assertEqual(pedido.cliente_snapshot, {})\n        self.assertIsNone(pedido.condicion_pago)\n""", encoding='utf-8')
+          PY
+
+      - name: Remove one-shot workflow and commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/implement-issue-3.yml
+          git add backend frontend
+          git commit -m "feat: persistir condición comercial y snapshot de cliente (#3)"
+          git push origin HEAD:issue-3-commercial-snapshot
