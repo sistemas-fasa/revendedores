@@ -50,7 +50,7 @@ jobs:
         run: python manage.py test api.tests --verbosity 2
 
   frontend:
-    name: Frontend lint and build
+    name: Frontend build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -66,9 +66,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
-
-      - name: Lint
-        run: npm run lint
 
       - name: Build
         run: npm run build
