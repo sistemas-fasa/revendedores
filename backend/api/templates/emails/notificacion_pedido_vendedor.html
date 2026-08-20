@@ -14,19 +14,19 @@
 
             <div style="padding:24px;">
                 <h2 style="margin:0 0 8px; font-size:20px;">Se ha recibido un nuevo pedido</h2>
-                <p style="margin:0 0 16px; color:#4b5563;">Pedido <strong>#{{ pedido.id }}</strong> del cliente <strong>{{ pedido.user.username }}</strong>.</p>
+                <p style="margin:0 0 16px; color:#4b5563;">Pedido <strong>#{{ pedido.id }}</strong> del cliente <strong>{% firstof pedido.cliente_snapshot.nombre pedido.user.username %}</strong>.</p>
 
                 <div style="display:block; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 16px; margin-bottom:16px;">
                     <div style="font-size:13px; color:#6b7280;">Cliente</div>
                     <div style="font-size:14px; margin-top:6px;">
-                        <div><strong>Usuario:</strong> {{ pedido.user.username }}</div>
-                        <div><strong>Nombre:</strong> {{ pedido.user.first_name }} {{ pedido.user.last_name }}</div>
-                        <div><strong>Email:</strong> {{ pedido.user.email }}</div>
-                        <div><strong>Número de cliente:</strong> {{ pedido.user.cliente.numero_cliente }}</div>
-                        <div><strong>Condición de pago:</strong> {{ pedido.user.cliente.condicion_pago.nombre }}</div>
+                        <div><strong>Usuario:</strong> {% firstof pedido.cliente_snapshot.nombre pedido.user.username %}</div>
+                        <div><strong>Nombre:</strong> {% firstof pedido.cliente_snapshot.nombre pedido.user.get_full_name %}</div>
+                        <div><strong>Email:</strong> {% firstof pedido.cliente_snapshot.email pedido.user.email %}</div>
+                        <div><strong>Número de cliente:</strong> {% firstof pedido.cliente_snapshot.numero_cliente pedido.user.cliente.numero_cliente %}</div>
+                        <div><strong>Condición de pago:</strong> {% firstof pedido.cliente_snapshot.condicion_pago_nombre pedido.user.cliente.condicion_pago.nombre %}</div>
                         <div><strong>Modalidad:</strong> {{ pedido.get_modalidad_display }}</div>
                         <div><strong>Impuestos:</strong> {% if pedido.con_impuestos %}Con impuestos{% else %}Sin impuestos{% endif %}</div>
-                        <div><strong>Localidad de reparto:</strong> {{ pedido.user.cliente.codigo_localidad.nombre }}</div>
+                        <div><strong>Localidad de reparto:</strong> {% firstof pedido.cliente_snapshot.localidad pedido.user.cliente.codigo_localidad.nombre %}</div>
                     </div>
                 </div>
 

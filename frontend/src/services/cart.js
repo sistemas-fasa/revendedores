@@ -105,10 +105,12 @@ export const cart = reactive({
             const modalidad = localStorage.getItem('articulos_modalidad') || 'retira';
             const savedImpuestos = localStorage.getItem('articulos_con_impuestos');
             const con_impuestos = savedImpuestos === null ? true : savedImpuestos === 'true';
+            const condicion_pago = localStorage.getItem('condicion_pago');
 
             const pedidoData = {
                 modalidad,
                 con_impuestos,
+                ...(condicion_pago ? { condicion_pago } : {}),
                 items: this.items.map(item => ({
                     articulo: item.articulo.clave,
                     cantidad: item.cantidad,
