@@ -1,13 +1,13 @@
 <template>
   <div v-if="open" class="fixed inset-0 z-[70] flex items-start justify-center bg-black/45 p-3 pt-[8vh] sm:p-6 sm:pt-[10vh]" @click.self="close">
-    <section role="dialog" aria-modal="true" aria-labelledby="quick-load-title" class="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <section ref="dialogPanel" role="dialog" aria-modal="true" aria-labelledby="quick-load-title" class="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
       <header class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
         <div>
           <p class="text-xs font-black uppercase tracking-wide text-red-700">Carga rápida</p>
           <h2 id="quick-load-title" class="mt-1 text-xl font-black text-gray-950">Agregar por código</h2>
           <p class="mt-1 text-sm text-gray-500">Código → Enter → cantidad → Enter. Repetí sin usar el mouse.</p>
         </div>
-        <button type="button" class="rounded-lg p-2 text-xl font-black text-gray-500 hover:bg-gray-100" aria-label="Cerrar carga rápida" @click="close">×</button>
+        <button ref="closeButton" type="button" class="rounded-lg p-2 text-xl font-black text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2" aria-label="Cerrar carga rápida" @click="close">×</button>
       </header>
 
       <div class="space-y-4 p-5">
@@ -23,13 +23,13 @@
               placeholder="Ej: .030011"
               @keydown.enter.prevent="resolveArticle"
             >
-            <button type="button" class="rounded-lg bg-gray-900 px-4 text-sm font-black text-white disabled:opacity-50" :disabled="loading || !query" @click="resolveArticle">
+            <button type="button" class="rounded-lg bg-gray-900 px-4 text-sm font-black text-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" :disabled="loading || !query" @click="resolveArticle">
               {{ loading ? 'Buscando…' : 'Buscar' }}
             </button>
           </div>
         </label>
 
-        <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">{{ error }}</div>
+        <div v-if="error" role="alert" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">{{ error }}</div>
 
         <div v-if="article" class="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <div class="flex gap-3">
@@ -55,7 +55,7 @@
                 @keydown.enter.prevent="addAndContinue"
               >
             </label>
-            <button type="button" class="h-12 rounded-lg bg-red-600 px-5 text-sm font-black text-white hover:bg-red-700" @click="addAndContinue">Agregar y seguir</button>
+            <button type="button" class="h-12 rounded-lg bg-red-600 px-5 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2" @click="addAndContinue">Agregar y seguir</button>
           </div>
 
           <p class="mt-2 text-xs font-semibold text-gray-500">
@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '@/services/api'
 import { cart } from '@/services/cart'
 
@@ -93,6 +93,9 @@ const loading = ref(false)
 const error = ref('')
 const codeInput = ref(null)
 const quantityInput = ref(null)
+const dialogPanel = ref(null)
+const closeButton = ref(null)
+let previouslyFocused = null
 
 const money = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0)
 const isM2 = computed(() => (article.value?.campoa1 || '').toLowerCase() === 'a' && Number(article.value?.mts2) > 0)
@@ -181,12 +184,50 @@ const addAndContinue = async () => {
 
 const close = () => emit('update:open', false)
 
+const focusableElements = () => Array.from(dialogPanel.value?.querySelectorAll(
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+) || [])
+
+const onKeydown = (event) => {
+  if (!props.open) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const elements = focusableElements()
+  if (elements.length === 0) return
+  const first = elements[0]
+  const last = elements[elements.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 watch(() => props.open, async (value) => {
   if (value) {
+    previouslyFocused = document.activeElement
+    document.body.style.overflow = 'hidden'
     query.value = ''
     article.value = null
     error.value = ''
     await focusCode()
+  } else {
+    document.body.style.overflow = ''
+    await nextTick()
+    previouslyFocused?.focus?.()
+    previouslyFocused = null
   }
+})
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  document.body.style.overflow = ''
 })
 </script>
