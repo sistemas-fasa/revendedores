@@ -1,14 +1,27 @@
 const SUMMARY_ID = 'commercial-conditions-summary'
 
 const findConditionsPanel = () => {
-  const candidates = Array.from(document.querySelectorAll('div'))
-  return candidates.find((node) => {
-    if (node.id === SUMMARY_ID) return false
-    const title = Array.from(node.querySelectorAll('p')).find(
-      (p) => p.textContent?.trim() === 'Condiciones comerciales'
-    )
-    return Boolean(title && node.querySelector('select'))
-  }) || null
+  const title = Array.from(document.querySelectorAll('p')).find(
+    (node) => node.textContent?.trim() === 'Condiciones comerciales'
+  )
+
+  if (!title) return null
+
+  // Buscar desde el título hacia arriba y devolver el ancestro MÁS CERCANO
+  // que contenga los controles comerciales. Esto evita seleccionar el
+  // contenedor general de ArticulosView y ocultar el resto de la pantalla.
+  let node = title.parentElement
+  while (node && node !== document.body) {
+    const hasSelect = Boolean(node.querySelector('select'))
+    const text = node.textContent || ''
+    const hasModality = text.includes('MODALIDAD')
+    const hasPrice = text.includes('PRECIO')
+
+    if (hasSelect && hasModality && hasPrice) return node
+    node = node.parentElement
+  }
+
+  return null
 }
 
 const getConditionLabel = (panel) => {
