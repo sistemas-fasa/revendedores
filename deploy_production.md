@@ -47,7 +47,7 @@ nginx hace de reverse proxy: `https://ventas.ferreteriaavenida.com.ar/api/* → 
 | `/var/www/html/reventa/sockets/` | (vacío) | — |
 | `/var/www/html/reventa/_backup_codex/` | Backups antiguos | — |
 | `/var/www/html/reventa/docker/` | Config del stack Docker de pruebas | Solo se toca en deploys de **pruebas** |
-| `/var/www/html/reventa/frontend/dist/`` | Salida del último `npm run build` | Se usa como fuente para copiar al root nginx |
+| `/var/www/html/reventa/frontend/dist/` | Salida del último `npm run build` | Se usa como fuente para copiar al root nginx |
 | `192.168.0.150:3306` | MySQL externo | **NO TOCAR** estructura, sí se pueden correr migrations |
 
 ### 1.4 Permisos clave
@@ -57,399 +57,327 @@ nginx hace de reverse proxy: `https://ventas.ferreteriaavenida.com.ar/api/* → 
 /var/www/html/reventa/frontend         administracion:...  777
 /var/www/html/reventa/frontend/src     ferreteria:...      555  ← sin write
 /var/www/html/reventa/backend          root:www-data       777
+/var/www/html/reventa/backend/api      root:www-data       777
 /var/www/html/reventa/venv             root:www-data       777
 ```
 
-> El usuario `ferreteria` puede escribir en la mayoría de los paths vía el bit
-> `777` o siendo owner. Para `systemctl restart reventa` y para
-> `nginx -s reload` se necesita **sudo**, que el usuario `ferreteria` **no
-> tiene configurado sin password**. Coordinar con un admin que sí tenga sudo,
-> o pedir agregar la regla en `/etc/sudoers.d/`.
+> **Permisos reales (verificado 2026-08-21):** aunque `backend/` es `777`,
+> los subdirectorios (`api/`, `api/migrations/`, `api/services/`, etc.) están
+>owned por `root:www-data` y `ferreteria` **NO puede hacer `chmod`** en ellos.
+> Los .py files dentro sí son owned por `ferreteria` y se pueden sobrescribir.
+> Los directorios nuevos (ej: `api/tests/`) en `555` impiden crear archivos.
 
 ---
 
-## 2. Pre-flight local (Windows → repo)
+## 2. Cómo hacer deploy (paso a paso real)
+
+> Este es el procedimiento **real tal como se ejecutó** el 2026-08-21.
+> Incluye los workarounds que funcionaron.
+
+### 2.1 Pre-flight local
 
 ```bash
-# 1. Estado limpio
-git status
-
-# 2. Rama correcta
+# Rama correcta
 git branch --show-current   # debe decir: ui-venta-rapida
 
-# 3. Actualizar al HEAD remoto
+# Actualizar
 git fetch origin
-git checkout ui-venta-rapida
 git pull --ff-only origin ui-venta-rapida
-git log -1 --oneline
+
+# Verificar qué cambió
+git log --oneline --since="<fecha_ultimo_deploy>" ui-venta-rapida
+git diff <commit_anterior>..HEAD --name-only
 ```
 
-> Si `git pull` dice `Not possible to fast-forward`, **PARAR**. Hay commits
-> locales divergentes — resolver antes de seguir.
-
-### 2.1 Si hay cambios sin commitear que querés preservar
-
-```bash
-git stash push -u -m "backup antes de deploy $(date +%Y-%m-%d)"
-```
-
-> Después del deploy podés hacer `git stash pop` para restaurarlos.
-
----
-
-## 3. Identificar archivos a sincronizar
-
-```bash
-# Diff contra el último commit deployado a PRODUCCIÓN
-git diff <commit_anterior>..HEAD --stat
-```
-
-> **Cuidado:** el último deploy a producción puede ser muy viejo. Confirmá
-> el `index.html` actual de nginx:
-> ```bash
-> ssh fasa_195 "stat /var/www/html/reventa/frontend/index.html | grep Modify"
-> ```
-> Si la fecha es muy anterior al HEAD que querés deployar, ese es tu
-> `<commit_anterior>`.
-
----
-
-## 4. Sincronizar al servidor
-
-### 4.1 Permisos del server (referencia)
-
-```
-/var/www/html/reventa                    root:www-data       777
-/var/www/html/reventa/frontend           administracion:...  777
-/var/www/html/reventa/frontend/src       ferreteria:...      555  ← sin write (permite sobreescribir archivos existentes pero no crear nuevos)
-/var/www/html/reventa/backend            root:www-data       777
-/var/www/html/reventa/docker             ferreteria:...      555
-```
-
-> Si `scp` falla con `Permission denied` al crear un archivo nuevo, el
-> directorio destino está en `555`. Workaround:
-> ```bash
-> ssh fasa_195 "chmod u+w /var/www/html/reventa/<directorio>"
-> ```
-
-### 4.2 scp de archivos
-
-```bash
-scp -q "\\pc-oscar\programacion\web\revendedores\<ruta_relativa>" \
-     "ferreteria@fasa_195:/var/www/html/reventa/<ruta_relativa>"
-
-# Ejemplos reales:
-scp -q "\\pc-oscar\programacion\web\revendedores\backend\api\views.py" \
-     "ferreteria@fasa_195:/var/www/html/reventa/backend/api/views.py"
-
-scp -q "\\pc-oscar\programacion\web\revendedores\frontend\src\views\ArticulosView.vue" \
-     "ferreteria@fasa_195:/var/www/html/reventa/frontend/src/views/ArticulosView.vue"
-```
-
-### 4.3 Borrar archivos eliminados en el repo (si aplica)
-
-```bash
-ssh fasa_195 "rm -f /var/www/html/reventa/<ruta>/<archivo_eliminado>"
-```
-
----
-
-## 5. Build & deploy de FRONTEND (producción)
-
-> El nginx de producción sirve `/var/www/html/reventa/frontend/` directamente.
-> El build de Vite genera `/var/www/html/reventa/frontend/dist/`, y los
-> archivos del `dist/` se copian al directorio padre (`frontend/`) para que
-> nginx los sirva en el root.
-
-```bash
-ssh fasa_195 'cd /var/www/html/reventa/frontend && \
-  npm install --legacy-peer-deps && \
-  npm run build'
-```
-
-> Solo si cambió `frontend/package.json` o `frontend/package-lock.json`:
-> `npm install` puede omitirse.
-
-Verificar el build:
-
-```bash
-ssh fasa_195 'ls -la /var/www/html/reventa/frontend/dist/index.html'
-```
-
-Publicar (copiar `dist/*` al root que sirve nginx):
-
-```bash
-ssh fasa_195 'cd /var/www/html/reventa/frontend && \
-  shopt -s dotglob && \
-  cp -r dist/* . && \
-  chmod 644 index.html assets/* 2>/dev/null'
-```
-
-> `dotglob` copia también archivos ocultos (e.g. `.htaccess` si lo hubiera).
-> El `chmod` es porque `cp` preserva los permisos del `dist/` y nginx prefiere
-> `644` para archivos servidos.
-
----
-
-## 6. Deploy de BACKEND (producción)
-
-### 6.1 Si cambió `requirements.txt`
+### 2.2 Backup en el server (siempre antes de tocar algo)
 
 ```bash
 ssh fasa_195 'cd /var/www/html/reventa && \
-  venv/bin/pip install -r requirements.txt'
+  tar czf /tmp/backend_backup_$(date +%Y%m%d_%H%M%S).tar.gz \
+    backend/api backend/backend backend/graficos backend/manage.py backend/requirements.txt && \
+  tar czf /tmp/frontend_src_backup_$(date +%Y%m%d_%H%M%S).tar.gz \
+    frontend/src frontend/index.html frontend/package.json frontend/package-lock.json \
+    frontend/vite.config.ts frontend/tailwind.config.js frontend/tsconfig.json frontend/.eslintrc.cjs'
 ```
 
-### 6.2 Si hay migrations nuevas
+### 2.3 Sync BACKEND (método que funciona)
+
+**NO usar rsync desde Windows** (no funciona bien con UNC paths). Usar **tar local + scp + extract**:
+
+```powershell
+# 1. Crear carpeta temporal
+$tmpDir = "C:\Users\Ventas\AppData\Local\Temp\opencode\reventa_deploy\backend"
+New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+
+# 2. Copiar archivos (robocopy excluyendo migraciones, venv, __pycache__)
+robocopy "\\pc-oscar\programacion\web\revendedores\backend\api" "$tmpDir\api" /E /XD migrations __pycache__ | Out-Null
+robocopy "\\pc-oscar\programacion\web\revendedores\backend\backend" "$tmpDir\backend" /E /XD __pycache__ | Out-Null
+robocopy "\\pc-oscar\programacion\web\revendedores\backend\graficos" "$tmpDir\graficos" /E /XD __pycache__ | Out-Null
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\manage.py" "$tmpDir\manage.py" -Force
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\requirements.txt" "$tmpDir\requirements.txt" -Force
+
+# 3. Tar y subir
+tar -czf "$tmpDir\..\backend_code.tar.gz" -C "$tmpDir\.." backend
+scp "$tmpDir\..\backend_code.tar.gz" "ferreteria@fasa_195:/tmp/backend_code.tar.gz"
+```
+
+En el server:
+
+```bash
+# 4. Extraer (ignorar errores de permisos en directorios — los .py SÍ se copian)
+ssh fasa_195 'cd /var/www/html/reventa && \
+  tar xzf /tmp/backend_code.tar.gz --strip-components=1 -C backend/ \
+    backend/api backend/backend backend/graficos backend/manage.py backend/requirements.txt'
+```
+
+> **Nota:** el `tar` muestra errores como "No se puede efectuar utime" y
+> "No se puede cambiar el modo" — son por permisos de directorios. Los
+> archivos .py SÍ se extraen correctamente. Verificar después con `head`
+> en los archivos clave.
+
+### 2.4 Sync MIGRACIONES
+
+Las migraciones se sync por separado porque se excluyen del tar principal:
+
+```powershell
+# Local: copiar migraciones nuevas a carpeta temporal
+$migDir = "C:\Users\Ventas\AppData\Local\Temp\opencode\reventa_deploy\migrations"
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\api\migrations\0027_pedido_*.py" "$migDir\" -Force
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\api\migrations\0028_alter_*.py" "$migDir\" -Force
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\api\migrations\0029_*.py" "$migDir\" -Force
+Copy-Item "\\pc-oscar\programacion\web\revendedores\backend\api\migrations\0030_*.py" "$migDir\" -Force
+
+# Tar y subir
+tar -czf "$migDir\..\migrations.tar.gz" -C $migDir .
+scp "$migDir\..\migrations.tar.gz" "ferreteria@fasa_195:/tmp/migrations.tar.gz"
+```
+
+En el server:
+
+```bash
+# Extraer a carpeta temporal y copiar (por permisos del directorio migrations)
+ssh fasa_195 'mkdir -p /tmp/mig_extract && cd /tmp/mig_extract && \
+  tar xzf /tmp/migrations.tar.gz && \
+  cp *.py /var/www/html/reventa/backend/api/migrations/'
+```
+
+### 2.5 Aplicar migraciones
 
 ```bash
 ssh fasa_195 'cd /var/www/html/reventa/backend && \
-  ../venv/bin/python manage.py migrate --noinput'
+  ../venv/bin/python manage.py migrate --noinput 2>&1'
 ```
 
-> `--noinput` porque no hay consola interactiva en el server. Si una migration
-> tiene `RunPython` con input, va a fallar — revisar antes.
-
-> Si la tabla `django_migrations` quedó desincronizada (caso típico de
-> un server que perdió histórico), puede hacer falta `--fake` para las
-> antiguas y reales para las nuevas:
+> Si hay ramas de migración sin merge (error "multiple leaf nodes"), crear
+> migración merge primero:
 > ```bash
 > ssh fasa_195 'cd /var/www/html/reventa/backend && \
->   ../venv/bin/python manage.py migrate --fake <app> <migration_name>'
+>   ../venv/bin/python manage.py makemigrations --merge --noinput'
 > ```
 
-### 6.3 Recolectar estáticos (si corresponde)
+### 2.6 Sync FRONTEND fuente + build
 
-```bash
-ssh fasa_195 'cd /var/www/html/reventa/backend && \
-  ../venv/bin/python manage.py collectstatic --noinput'
+```powershell
+# 1. Copiar source files
+$tmpDir = "C:\Users\Ventas\AppData\Local\Temp\opencode\reventa_deploy\frontend"
+$src = "\\pc-oscar\programacion\web\revendedores\frontend"
+robocopy "$src\src" "$tmpDir\src" /E | Out-Null
+Copy-Item "$src\package.json" "$tmpDir\" -Force
+Copy-Item "$src\package-lock.json" "$tmpDir\" -Force
+Copy-Item "$src\vite.config.ts" "$tmpDir\" -Force
+Copy-Item "$src\tailwind.config.js" "$tmpDir\" -Force
+Copy-Item "$src\tsconfig.json" "$tmpDir\" -Force
+Copy-Item "$src\.eslintrc.cjs" "$tmpDir\" -Force
+Copy-Item "$src\index.html" "$tmpDir\" -Force
+
+# 2. Tar y subir
+tar -czf "$tmpDir\..\frontend_source.tar.gz" -C "$tmpDir\.." frontend
+scp "$tmpDir\..\frontend_source.tar.gz" "ferreteria@fasa_195:/tmp/frontend_source.tar.gz"
 ```
 
-> Solo si cambió `STATIC_ROOT` o se agregaron estáticos nuevos. La config
-> nginx ya apunta a `/var/www/html/reventa/backend/static/` para `/static/`.
+En el server:
 
-### 6.4 Reiniciar gunicorn
+```bash
+# 3. Extraer
+ssh fasa_195 'cd /var/www/html/reventa && \
+  tar xzf /tmp/frontend_source.tar.gz --strip-components=1 -C frontend/ \
+    frontend/src frontend/index.html frontend/package.json frontend/package-lock.json \
+    frontend/vite.config.ts frontend/tailwind.config.js frontend/tsconfig.json frontend/.eslintrc.cjs'
+
+# 4. Build
+ssh fasa_195 'cd /var/www/html/reventa/frontend && \
+  npm install --legacy-peer-deps && npm run build'
+
+# 5. Publicar (copiar dist/* al root de nginx)
+ssh fasa_195 'cd /var/www/html/reventa/frontend && cp -r dist/* .'
+```
+
+### 2.7 Reiniciar gunicorn
+
+**Opción A — systemctl (requiere sudo):**
 
 ```bash
 ssh fasa_195 'sudo systemctl restart reventa'
+# Te va a pedir la contraseña de ferreteria
 ```
 
-> Requiere sudo. Ver sección 1.4.
-
-Verificar:
+**Opción B — HUP signal (sin sudo, si ya tenés la sesión SSH):**
 
 ```bash
-ssh fasa_195 'systemctl status reventa --no-pager | head -10 && \
-  curl -sI http://127.0.0.1:8088/api/health 2>&1 | head -3'
+ssh fasa_195 'kill -HUP $(pgrep -f "gunicorn.*reventa" | head -1)'
 ```
 
----
+> `kill -HUP` hace graceful restart: mata workers viejos y crea nuevos
+> cargando el código actualizado. Funciona sin sudo porque `ferreteria`
+> es owner del proceso gunicorn.
 
-## 7. Validación post-deploy
-
-### 7.1 Frontend sirviendo bundle nuevo
-
-```bash
-ssh fasa_195 'curl -sI https://ventas.ferreteriaavenida.com.ar 2>&1 | head -10'
-```
-
-> Debe devolver `HTTP/2 200` con cabeceras de seguridad:
-> `Strict-Transport-Security`, `X-Frame-Options`, `Content-Security-Policy`.
-
-Confirmar bundle actualizado:
+### 2.8 Verificar
 
 ```bash
-ssh fasa_195 'curl -s https://ventas.ferreteriaavenida.com.ar/ | \
+# Estado del servicio
+ssh fasa_195 'systemctl status reventa --no-pager | head -10'
+
+# Backend responde
+ssh fasa_195 'curl -sk https://127.0.0.1/api/token/ -H "Host: ventas.ferreteriaavenida.com.ar" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"test\",\"password\":\"test\"}" 2>&1'
+
+# Frontend sirve bundle nuevo
+ssh fasa_195 'curl -sk https://127.0.0.1/ -H "Host: ventas.ferreteriaavenida.com.ar" 2>&1 | \
   grep -oE "assets/index-[^\"]+\.(css|js)"'
+
+# Django check
+ssh fasa_195 'cd /var/www/html/reventa/backend && ../venv/bin/python manage.py check --no-color 2>&1'
 ```
 
-El hash debe corresponder al último build.
-
-### 7.2 Backend respondiendo
-
-```bash
-ssh fasa_195 'curl -sI https://ventas.ferreteriaavenida.com.ar/api/health 2>&1 | head -3'
-```
-
-### 7.3 E2E completo
-
-```bash
-TOKEN=$(curl -s -X POST https://ventas.ferreteriaavenida.com.ar/api/token/ \
-  -H "Content-Type: application/json" \
-  -d '{"username":"oscar","password":"<password>"}' | \
-  python3 -c "import sys,json; print(json.load(sys.stdin)['access'])")
-
-curl -s -X POST https://ventas.ferreteriaavenida.com.ar/api/pedidos/checkout/ \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: prod-test-$(date +%s)" \
-  -d '{"modalidad":"retira","con_impuestos":true,"items":[{"articulo":".030011","cantidad":1,"precio_unitario":1.00}]}' | \
-  python3 -c "import sys,json; r=json.load(sys.stdin); print('id:', r.get('id'), 'total:', r.get('total'))"
-```
-
-Esperado: HTTP 201, `id` numérico, `total` recalculado por backend.
+> **El usuario `oscar` tiene password diferente en producción** (DB externa
+> `192.168.0.150`) que en el stack Docker de pruebas. No confundir.
 
 ---
 
-## 8. Cache de navegador
+## 3. Troubleshooting
 
-`/etc/nginx/sites-enabled/ventas` define:
+### 3.1 `sudo: se requiere una contraseña`
 
+`ferreteria` tiene sudo pero **necesita ingresar la contraseña**. No hay
+workaround sin contraseña. Alternativa: usar `kill -HUP` (ver 2.7 opción B).
+
+### 3.2 tar errores "No se puede efectuar utime" / "Permiso denegado"
+
+Es normal. Los directorios `api/`, `api/migrations/`, `api/services/` están
+owned por `root:www-data` y `ferreteria` no puede cambiar timestamps/perms.
+**Los archivos .py SÍ se extraen.** Verificar con `head` después.
+
+### 3.3 `Conflicting migrations detected; multiple leaf nodes`
+
+Django detecta ramas de migración sin merge (ej: bot y pedido). Solución:
+
+```bash
+ssh fasa_195 'cd /var/www/html/reventa/backend && \
+  ../venv/bin/python manage.py makemigrations --merge --noinput && \
+  ../venv/bin/python manage.py migrate --noinput'
 ```
-location /         add_header Cache-Control "public, max-age=3600";
-location /static/  expires 1y; add_header Cache-Control "public, immutable";
-location /media/   expires 1y; add_header Cache-Control "public";
-```
 
-> **Después de cada deploy el usuario debe hacer `Ctrl+Shift+R`** (o abrir
-> en ventana incógnito) en `https://ventas.ferreteriaavenida.com.ar`.
+### 3.4 Después del deploy el sitio muestra el bundle viejo
 
----
+- `Ctrl+Shift+R` en el navegador
+- Verificar hash: `curl -sk https://127.0.0.1/ -H "Host: ventas.ferreteriaavenida.com.ar" | grep -oE "assets/index-[^\"]+\.js"`
+- Confirmar que `cp -r dist/* .` se ejecutó en `frontend/`
 
-## 9. Troubleshooting
-
-### 9.1 `systemctl restart reventa` falla con "permission denied"
-
-`ferreteria` no tiene sudo sin password. Opciones:
-1. Coordinar con admin que sí tenga sudo
-2. Agregar a `/etc/sudoers.d/reventa`:
-   ```
-   ferreteria ALL=(root) NOPASSWD: /bin/systemctl restart reventa
-   ```
-3. Usar `kill -HUP <gunicorn-master-pid>` (signal-based reload, no requiere sudo):
-   ```bash
-   ssh fasa_195 'kill -HUP $(cat /var/www/html/reventa/sockets/* 2>/dev/null || pgrep -f "gunicorn.*reventa")'
-   ```
-
-### 9.2 Después del deploy el sitio sigue mostrando el bundle viejo
-
-- Forzar hard refresh (`Ctrl+Shift+R`)
-- Verificar que el hash en `https://ventas.ferreteriaavenida.com.ar/` cambió
-- Si no cambió, revisar que `cp -r dist/* .` haya sobrescrito `index.html`:
-  ```bash
-  ssh fasa_195 'stat /var/www/html/reventa/frontend/index.html | grep Modify'
-  ```
-
-### 9.3 Backend devuelve 500 después del deploy
+### 3.5 Backend devuelve 500
 
 ```bash
 ssh fasa_195 'tail -100 /var/www/html/reventa/logs/gunicorn.log'
 ```
 
-Causas comunes:
-- Falta `migrate`
-- Falta `pip install -r requirements.txt`
-- `backend/.env` quedó desincronizado
-- `SECRET_KEY` regenerado (invalidaría sesiones existentes)
-
-### 9.4 Migración falla con "table doesn't exist" o "relation already exists"
-
-Tabla `django_migrations` desincronizada. Aplicar `--fake` selectivo:
+### 3.6 Verificar qué migraciones faltan en prod
 
 ```bash
 ssh fasa_195 'cd /var/www/html/reventa/backend && \
-  ../venv/bin/python manage.py migrate --fake'
+  ../venv/bin/python manage.py showmigrations api 2>&1 | grep "\[ \]"'
 ```
 
-> Esto marca todas las migrations como aplicadas sin ejecutarlas. Usar
-> SOLO si la tabla está efectivamente al día (comparar con dump de la app).
-
----
-
-## 10. Rollback
-
-### 10.1 Frontend
-
-Si el último deploy rompió el frontend, restaurar `frontend/` desde backup
-previo:
-
-```bash
-# 1. Identificar backup
-ssh fasa_195 'ls -la /var/www/html/reventa/_backup_codex/'
-
-# 2. Restaurar desde un tar.gz si existe
-ssh fasa_195 "cd /var/www/html/reventa && \
-  tar xzf /var/backups/reventa-frontend-<fecha>.tar.gz"
-```
-
-> **Backup preventivo:** antes de cada deploy de frontend, hacer snapshot:
-> ```bash
-> ssh fasa_195 "tar czf /tmp/frontend-$(date +%Y%m%d-%H%M%S).tar.gz \
->   -C /var/www/html/reventa frontend"
-> ```
-
-### 10.2 Backend
-
-Rollback de código:
+### 3.7 Verificar estado de la DB (columnas de pedido)
 
 ```bash
 ssh fasa_195 'cd /var/www/html/reventa/backend && \
-  git checkout <commit_anterior>'   # solo si .git existe, sino restaurar desde backup
+  ../venv/bin/python manage.py shell -c "
+from django.db import connection
+c = connection.cursor()
+c.execute(\"DESCRIBE api_pedido\")
+for r in c.fetchall():
+    print(r[0], r[1])
+"'
 ```
 
-Rollback de migración (Django):
+---
+
+## 4. Rollback
+
+### 4.1 Frontend
 
 ```bash
+# Restaurar desde backup
+ssh fasa_195 'ls /tmp/frontend_src_backup_*.tar.gz'  # identificar backup
+ssh fasa_195 'cd /var/www/html/reventa && tar xzf /tmp/frontend_src_backup_<fecha>.tar.gz'
+ssh fasa_195 'cd /var/www/html/reventa/frontend && npm run build && cp -r dist/* .'
+```
+
+### 4.2 Backend
+
+```bash
+# Restaurar desde backup
+ssh fasa_195 'ls /tmp/backend_backup_*.tar.gz'
+ssh fasa_195 'cd /var/www/html/reventa && tar xzf /tmp/backend_backup_<fecha>.tar.gz'
+
+# Rollback de migración
 ssh fasa_195 'cd /var/www/html/reventa/backend && \
-  ../venv/bin/python manage.py migrate <app> <migration_anterior>'
+  ../venv/bin/python manage.py migrate api <migration_anterior>'
+
+# Reiniciar
+ssh fasa_195 'kill -HUP $(pgrep -f "gunicorn.*reventa" | head -1)'
 ```
-
-Reiniciar:
-
-```bash
-ssh fasa_195 'sudo systemctl restart reventa'
-```
-
-### 10.3 MySQL
-
-**NO** se hace rollback de MySQL en deploys normales. La DB de producción
-está en `192.168.0.150:3306` y solo se toca para migrations explícitas.
 
 ---
 
-## 11. Acceso al server
+## 5. Cache de navegador
 
-```bash
-ssh ferreteria@fasa_195
-```
-
-> El usuario `ferreteria`:
-> - ✅ puede escribir en `frontend/`, `backend/`, `venv/`, `docker/`, `logs/`
-> - ✅ puede ejecutar `git`, `docker`, `npm`, `pip` (en su venv)
-> - ❌ NO tiene sudo sin password para `systemctl`, `nginx -s reload`
->
-> Si necesitás sudo, pedir a un admin que ejecute el comando, o que agregue
-> la regla correspondiente en `/etc/sudoers.d/`.
+nginx define `Cache-Control: public, max-age=3600` para `/`. Después de cada
+deploy el usuario debe hacer **`Ctrl+Shift+R`** (o ventana incógnito).
 
 ---
 
-## 12. Resumen rápido (cheat sheet)
+## 6. Cheat sheet
 
 ```bash
-# Local
-git fetch origin && git checkout ui-venta-rapida && git pull --ff-only origin ui-venta-rapida
-git diff <prev>..HEAD --stat
+# === BACKEND ===
+# Backup
+ssh fasa_195 'cd /var/www/html/reventa && tar czf /tmp/backend_backup_$(date +%Y%m%d_%H%M%S).tar.gz backend/api backend/backend backend/graficos backend/manage.py backend/requirements.txt'
 
-# Sync
-scp -q "\\pc-oscar\programacion\web\revendedores\<arch>" "ferreteria@fasa_195:/var/www/html/reventa/<arch>"
+# Sync (desde Windows, crear tar local primero, luego:)
+ssh fasa_195 'cd /var/www/html/reventa && tar xzf /tmp/backend_code.tar.gz --strip-components=1 -C backend/ backend/api backend/backend backend/graficos backend/manage.py backend/requirements.txt'
 
-# Server — frontend
-ssh fasa_195 "cd /var/www/html/reventa/frontend && npm install --legacy-peer-deps && npm run build"
-ssh fasa_195 "cd /var/www/html/reventa/frontend && shopt -s dotglob && cp -r dist/* ."
+# Migrations
+ssh fasa_195 'cd /var/www/html/reventa/backend && ../venv/bin/python manage.py migrate --noinput'
 
-# Server — backend
-ssh fasa_195 "cd /var/www/html/reventa/backend && ../venv/bin/python manage.py migrate --noinput"
-ssh fasa_195 "sudo systemctl restart reventa"
+# === FRONTEND ===
+# Build
+ssh fasa_195 'cd /var/www/html/reventa/frontend && npm install --legacy-peer-deps && npm run build'
+ssh fasa_195 'cd /var/www/html/reventa/frontend && cp -r dist/* .'
 
-# Validar
-ssh fasa_195 "curl -s https://ventas.ferreteriaavenida.com.ar/ | grep -oE 'assets/index-[^\"]+\.js'"
+# === REINICIAR ===
+ssh fasa_195 'kill -HUP $(pgrep -f "gunicorn.*reventa" | head -1)'  # sin sudo
+# o
+ssh fasa_195 'sudo systemctl restart reventa'  # pide contraseña
+
+# === VALIDAR ===
+ssh fasa_195 'curl -sk https://127.0.0.1/ -H "Host: ventas.ferreteriaavenida.com.ar" | grep -oE "assets/index-[^\"]+\.js"'
+ssh fasa_195 'systemctl status reventa --no-pager | head -5'
 ```
-
-> **Recordar:** Ctrl+Shift+R en el navegador después de cada deploy.
 
 ---
 
-## 13. Diferencias con el stack de pruebas (Docker)
+## 7. Diferencias con el stack de pruebas (Docker)
 
 | Aspecto | Producción | Pruebas (Docker) |
 |---|---|---|
