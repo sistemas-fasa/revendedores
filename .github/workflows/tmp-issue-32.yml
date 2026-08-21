@@ -1,0 +1,33 @@
+name: tmp-issue-32
+on:
+  push:
+    branches: [issue-32-grid-3-columns]
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ajustar grilla responsive
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('frontend/src/views/ArticulosView.vue')
+          s = p.read_text()
+          old = 'class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"'
+          new = 'class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"'
+          if old not in s:
+              raise SystemExit('No se encontró la clase esperada de la grilla')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm .github/workflows/tmp-issue-32.yml
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/views/ArticulosView.vue .github/workflows/tmp-issue-32.yml
+          git commit -m "ui: limitar grilla de productos a 3 columnas (#32)"
+          git push
