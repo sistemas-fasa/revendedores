@@ -4,9 +4,6 @@ const restoreLegacyHiddenContainer = () => {
   const summary = document.getElementById(SUMMARY_ID)
   if (!summary) return
 
-  // La primera versión del #36 podía ocultar por error el contenedor general
-  // de ArticulosView. Si la barra compacta quedó como único hijo visible,
-  // restauramos ese hermano antes de reinstalar el comportamiento correcto.
   const parent = summary.parentElement
   if (!parent) return
 
@@ -23,9 +20,6 @@ const findConditionsPanel = () => {
 
   if (!title) return null
 
-  // Buscar desde el título hacia arriba y devolver el ancestro MÁS CERCANO
-  // que contenga los controles comerciales. Así no se toma el wrapper general
-  // de ArticulosView ni se ocultan búsqueda, productos o carrito lateral.
   let node = title.parentElement
   while (node && node !== document.body) {
     const hasSelect = Boolean(node.querySelector('select'))
@@ -83,8 +77,6 @@ const install = () => {
   const panel = findConditionsPanel()
   if (!panel) return
 
-  // Si la versión anterior marcó un wrapper equivocado, esa marca no debe
-  // impedir instalar sobre el panel correcto.
   const summary = buildSummary(panel)
   if (panel.dataset.compactCommercialInstalled === '1' && summary.dataset.bound === '1') return
 
@@ -134,12 +126,15 @@ const install = () => {
 
 const observer = new MutationObserver(() => install())
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    install()
-    observer.observe(document.body, { childList: true, subtree: true })
-  }, { once: true })
-} else {
+const start = () => {
   install()
+  // Solo observamos altas/bajas de nodos de Vue. No observamos atributos,
+  // por lo que ocultar/mostrar el panel no genera un ciclo del observer.
   observer.observe(document.body, { childList: true, subtree: true })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', start, { once: true })
+} else {
+  start()
 }
