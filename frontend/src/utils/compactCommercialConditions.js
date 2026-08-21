@@ -1,14 +1,37 @@
 const SUMMARY_ID = 'commercial-conditions-summary'
 
+const restoreLegacyHiddenContainer = () => {
+  const summary = document.getElementById(SUMMARY_ID)
+  if (!summary) return
+
+  const parent = summary.parentElement
+  if (!parent) return
+
+  Array.from(parent.children).forEach((child) => {
+    if (child === summary) return
+    if (child.style?.display === 'none') child.style.display = ''
+  })
+}
+
 const findConditionsPanel = () => {
-  const candidates = Array.from(document.querySelectorAll('div'))
-  return candidates.find((node) => {
-    if (node.id === SUMMARY_ID) return false
-    const title = Array.from(node.querySelectorAll('p')).find(
-      (p) => p.textContent?.trim() === 'Condiciones comerciales'
-    )
-    return Boolean(title && node.querySelector('select'))
-  }) || null
+  const title = Array.from(document.querySelectorAll('p')).find(
+    (node) => node.textContent?.trim() === 'Condiciones comerciales'
+  )
+
+  if (!title) return null
+
+  let node = title.parentElement
+  while (node && node !== document.body) {
+    const hasSelect = Boolean(node.querySelector('select'))
+    const text = node.textContent || ''
+    const hasModality = text.includes('MODALIDAD')
+    const hasPrice = text.includes('PRECIO')
+
+    if (hasSelect && hasModality && hasPrice) return node
+    node = node.parentElement
+  }
+
+  return null
 }
 
 const getConditionLabel = (panel) => {
@@ -49,11 +72,16 @@ const buildSummary = (panel) => {
 }
 
 const install = () => {
+  restoreLegacyHiddenContainer()
+
   const panel = findConditionsPanel()
-  if (!panel || panel.dataset.compactCommercialInstalled === '1') return
+  if (!panel) return
+
+  const summary = buildSummary(panel)
+  if (panel.dataset.compactCommercialInstalled === '1' && summary.dataset.bound === '1') return
 
   panel.dataset.compactCommercialInstalled = '1'
-  const summary = buildSummary(panel)
+  summary.dataset.bound = '1'
   let expanded = false
 
   const conditionEl = summary.querySelector('[data-commercial-condition]')
@@ -98,12 +126,15 @@ const install = () => {
 
 const observer = new MutationObserver(() => install())
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    install()
-    observer.observe(document.body, { childList: true, subtree: true })
-  }, { once: true })
-} else {
+const start = () => {
   install()
+  // Solo observamos altas/bajas de nodos de Vue. No observamos atributos,
+  // por lo que ocultar/mostrar el panel no genera un ciclo del observer.
   observer.observe(document.body, { childList: true, subtree: true })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', start, { once: true })
+} else {
+  start()
 }
