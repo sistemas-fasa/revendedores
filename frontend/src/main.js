@@ -4,6 +4,7 @@ import App from './App.vue';
 import { createPinia } from 'pinia';
 import router from './router';
 import './assets/index.css';
+import './assets/sticky-product-search.css';
 import './registerServiceWorker' // Importa el registro del service worker
 
 // 🔥 Importa tu toast personalizado
