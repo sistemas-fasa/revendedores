@@ -4,6 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* #34: la card de producto usa este bloque una única vez para precio + cantidad + CTA. */
 @layer components {
   .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3 {
     display: grid;
