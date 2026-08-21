@@ -1,5 +1,21 @@
 const SUMMARY_ID = 'commercial-conditions-summary'
 
+const restoreLegacyHiddenContainer = () => {
+  const summary = document.getElementById(SUMMARY_ID)
+  if (!summary) return
+
+  // La primera versión del #36 podía ocultar por error el contenedor general
+  // de ArticulosView. Si la barra compacta quedó como único hijo visible,
+  // restauramos ese hermano antes de reinstalar el comportamiento correcto.
+  const parent = summary.parentElement
+  if (!parent) return
+
+  Array.from(parent.children).forEach((child) => {
+    if (child === summary) return
+    if (child.style?.display === 'none') child.style.display = ''
+  })
+}
+
 const findConditionsPanel = () => {
   const title = Array.from(document.querySelectorAll('p')).find(
     (node) => node.textContent?.trim() === 'Condiciones comerciales'
@@ -8,8 +24,8 @@ const findConditionsPanel = () => {
   if (!title) return null
 
   // Buscar desde el título hacia arriba y devolver el ancestro MÁS CERCANO
-  // que contenga los controles comerciales. Esto evita seleccionar el
-  // contenedor general de ArticulosView y ocultar el resto de la pantalla.
+  // que contenga los controles comerciales. Así no se toma el wrapper general
+  // de ArticulosView ni se ocultan búsqueda, productos o carrito lateral.
   let node = title.parentElement
   while (node && node !== document.body) {
     const hasSelect = Boolean(node.querySelector('select'))
@@ -62,11 +78,18 @@ const buildSummary = (panel) => {
 }
 
 const install = () => {
+  restoreLegacyHiddenContainer()
+
   const panel = findConditionsPanel()
-  if (!panel || panel.dataset.compactCommercialInstalled === '1') return
+  if (!panel) return
+
+  // Si la versión anterior marcó un wrapper equivocado, esa marca no debe
+  // impedir instalar sobre el panel correcto.
+  const summary = buildSummary(panel)
+  if (panel.dataset.compactCommercialInstalled === '1' && summary.dataset.bound === '1') return
 
   panel.dataset.compactCommercialInstalled = '1'
-  const summary = buildSummary(panel)
+  summary.dataset.bound = '1'
   let expanded = false
 
   const conditionEl = summary.querySelector('[data-commercial-condition]')
