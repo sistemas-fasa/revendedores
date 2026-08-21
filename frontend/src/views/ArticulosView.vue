@@ -48,6 +48,17 @@ const searchQuery = ref('')
 const searchInputRef = ref(null)
 const cartSidebarCollapsed = ref(localStorage.getItem('order_sidebar_collapsed') === '1')
 const showQuickLoad = ref(false)
+const showCommercialConditions = ref(false)
+
+const selectedPaymentLabel = computed(() => {
+  const selected = formasPago.value.find(fp => fp.id === condicionPago.value)
+  if (!selected) return 'Condición de pago'
+
+  let label = selected.nombre
+  if (selected.descuento > 0) label += ` (-${selected.descuento}%)`
+  if (selected.punitorio > 0) label += ` (punitorio +${selected.punitorio}%)`
+  return label
+})
 
 // Autocompletado
 const showSuggestions = ref(false)
@@ -1014,76 +1025,52 @@ onMounted(() => {
           ></span>
         </button>
 
-        <!-- Filtros en escritorio (versión compacta) -->
+        <!-- Condiciones comerciales compactas (desktop) -->
         <div v-if="isDesktop" class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-          <div class="mb-2 flex items-center justify-between gap-3">
-            <p class="text-xs font-black uppercase tracking-wide text-gray-500">Condiciones comerciales</p>
-            <p class="text-xs font-medium text-gray-400">Se guardan automáticamente</p>
+          <div v-if="!showCommercialConditions" class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] font-black uppercase tracking-wide text-gray-500">Condiciones</span>
+            <span class="max-w-[520px] truncate rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-800">{{ selectedPaymentLabel }}</span>
+            <span class="rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800">{{ modalidad === 'retira' ? 'Retira' : 'Reparto' }}</span>
+            <span class="rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-800">{{ conImpuestos ? 'Con impuestos' : 'Sin impuestos' }}</span>
+            <button type="button" class="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-800 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700" @click="showCommercialConditions = true">Cambiar</button>
           </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(280px,1.4fr)_minmax(220px,0.8fr)_minmax(260px,0.9fr)]">
-            <!-- Condición de Pago -->
-            <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-              <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Condición de Pago</label>
-              <select
-                v-model="condicionPago"
-                class="ui-field border-gray-300 px-3 py-2 text-sm font-semibold shadow-sm"
-                :disabled="loadingFormasPago"
-              >
-                <option v-for="fp in formasPago" :key="fp.id" :value="fp.id">
-                  {{ fp.nombre }}
-                  <template v-if="fp.descuento > 0"> (-{{ fp.descuento }}%)</template>
-                  <template v-if="fp.punitorio > 0"> (punitorio +{{ fp.punitorio }}%)</template>
-                </option>
-              </select>
-              <p v-if="loadingFormasPago" class="text-xs text-gray-500 mt-1">Cargando...</p>
-            </div>
 
-            <!-- Modalidad -->
-            <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-              <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Modalidad</label>
-              <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
-                <button
-                  type="button"
-                  class="rounded-md px-3 py-2 text-sm font-bold transition"
-                  :class="modalidad === 'retira' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-                  @click="modalidad = 'retira'"
-                >
-                  Retira
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md px-3 py-2 text-sm font-bold transition"
-                  :class="modalidad === 'reparto' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-                  @click="modalidad = 'reparto'"
-                >
-                  Reparto
-                </button>
+          <template v-else>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-wide text-gray-500">Condiciones comerciales</p>
+                <p class="text-[11px] font-medium text-gray-400">Se guardan automáticamente</p>
+              </div>
+              <button type="button" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-800 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700" @click="showCommercialConditions = false">Listo</button>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(280px,1.4fr)_minmax(220px,0.8fr)_minmax(260px,0.9fr)]">
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Condición de Pago</label>
+                <select v-model="condicionPago" class="ui-field border-gray-300 px-3 py-2 text-sm font-semibold shadow-sm" :disabled="loadingFormasPago">
+                  <option v-for="fp in formasPago" :key="fp.id" :value="fp.id">
+                    {{ fp.nombre }}
+                    <template v-if="fp.descuento > 0"> (-{{ fp.descuento }}%)</template>
+                    <template v-if="fp.punitorio > 0"> (punitorio +{{ fp.punitorio }}%)</template>
+                  </option>
+                </select>
+                <p v-if="loadingFormasPago" class="mt-1 text-xs text-gray-500">Cargando...</p>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Modalidad</label>
+                <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
+                  <button type="button" class="rounded-md px-3 py-2 text-sm font-bold transition" :class="modalidad === 'retira' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" @click="modalidad = 'retira'">Retira</button>
+                  <button type="button" class="rounded-md px-3 py-2 text-sm font-bold transition" :class="modalidad === 'reparto' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" @click="modalidad = 'reparto'">Reparto</button>
+                </div>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Precio</label>
+                <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
+                  <button type="button" class="rounded-md px-3 py-2 text-sm font-bold transition" :class="conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" @click="conImpuestos = true">Con impuestos</button>
+                  <button type="button" class="rounded-md px-3 py-2 text-sm font-bold transition" :class="!conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'" @click="conImpuestos = false">Sin impuestos</button>
+                </div>
               </div>
             </div>
-
-            <!-- Precio -->
-            <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-              <label class="mb-1 block text-[11px] font-bold uppercase text-gray-500">Precio</label>
-              <div class="grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-inner">
-                <button
-                  type="button"
-                  class="rounded-md px-3 py-2 text-sm font-bold transition"
-                  :class="conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-                  @click="conImpuestos = true"
-                >
-                  Con impuestos
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md px-3 py-2 text-sm font-bold transition"
-                  :class="!conImpuestos ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'"
-                  @click="conImpuestos = false"
-                >
-                  Sin impuestos
-                </button>
-              </div>
-            </div>
-          </div>
+          </template>
         </div>
 
         <!-- Mensaje de error -->
