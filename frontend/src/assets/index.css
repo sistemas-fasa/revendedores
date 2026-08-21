@@ -3,3 +3,56 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Card de producto — acción rápida (#34)
+ *
+ * En cards con precio visible, el bloque final queda compuesto por:
+ * precio (fila completa) + stepper de cantidad + CTA en una sola fila.
+ * La lógica de cantidad y carrito permanece en ArticulosView.vue.
+ */
+@layer components {
+  .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.5rem;
+  }
+
+  .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > .ml-auto {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > .ui-button-primary {
+    height: 2.5rem;
+    flex-shrink: 0;
+    align-self: start;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > .ui-button-primary svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  @media (max-width: 379px) {
+    .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) {
+      grid-template-columns: 1fr;
+    }
+
+    .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > * {
+      grid-column: 1;
+    }
+
+    .grid > div > .flex.flex-1.flex-col.p-4 > .mt-4.flex.flex-wrap.items-end.gap-2.border-t.border-gray-200.pt-3:has(> .ui-button-primary) > .ui-button-primary {
+      width: 100%;
+    }
+  }
+}
