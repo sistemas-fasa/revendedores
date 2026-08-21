@@ -8,6 +8,7 @@ import './registerServiceWorker' // Importa el registro del service worker
 
 // 🔥 Importa tu toast personalizado
 import './utils/toast'; // ← esto crea window.Toast
+import './utils/compactCommercialConditions';
 
 const app = createApp(App);
 const pinia = createPinia();
