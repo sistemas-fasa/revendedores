@@ -1000,7 +1000,7 @@ onMounted(() => {
           <!-- Autocompletado -->
           <ul
             v-if="showSuggestions && suggestions.length > 0"
-            class="absolute z-50 mt-2 w-full max-h-72 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+            class="absolute z-20 mt-2 w-full max-h-72 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
           >
             <li
               v-for="sug in suggestions"
