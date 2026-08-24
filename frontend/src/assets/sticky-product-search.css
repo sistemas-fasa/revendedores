@@ -19,4 +19,8 @@
   .mobile-search-card {
     top: 0;
   }
+  .sidebar-mobile-open .mobile-search-card,
+  .sidebar-mobile-open .mobile-order-drawer {
+    display: none !important;
+  }
 }

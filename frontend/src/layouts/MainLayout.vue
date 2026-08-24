@@ -2,7 +2,7 @@
   <div class="flex h-screen flex-col bg-gray-100">
     <Navbar @toggleSidebar="toggleSidebar" />
 
-    <div class="flex min-h-0 flex-1 overflow-hidden">
+    <div class="flex min-h-0 flex-1 overflow-hidden" :class="{ 'sidebar-mobile-open': isSidebarOpen && isMobile }">
       <Sidebar
         :isSidebarOpen="isSidebarOpen"
         @toggle="toggleSidebar"

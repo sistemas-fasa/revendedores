@@ -1,5 +1,5 @@
 <template>
-  <div v-show="!hideDueToSidebar" class="xl:hidden">
+  <div v-show="!hideDueToSidebar" class="xl:hidden mobile-order-drawer">
     <button
       type="button"
       class="fixed inset-x-3 bottom-3 z-10 flex items-center justify-between rounded-xl bg-red-600 px-4 py-3 text-white shadow-2xl"
