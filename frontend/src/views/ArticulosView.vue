@@ -951,6 +951,12 @@ onMounted(() => {
               <RouterLink to="/productos?discontinuados=1" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 hover:bg-amber-100">Discontinuados</RouterLink>
               <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-700 hover:bg-gray-50" @click="clearSearch">Ver todos</button>
               <button type="button" class="rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-white hover:bg-black" @click="showQuickLoad = true">Carga rápida</button>
+              <button type="button" class="inline-flex items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-3 py-2 text-white hover:bg-green-700" @click="exportToExcel">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Descargar lista
+              </button>
             </div>
           </div>
           <div class="mobile-search-body px-4 py-3 sm:px-5">
@@ -1106,6 +1112,16 @@ onMounted(() => {
               </select>
             </label>
 
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-lg border border-green-600 bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-green-700"
+              @click="exportToExcel"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Descargar lista
+            </button>
             <div class="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-1">
               <button
                 type="button"

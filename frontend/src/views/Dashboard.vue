@@ -11,6 +11,15 @@
         <ActionButton to="/pedidos" variant="secondary">
           Mis pedidos
         </ActionButton>
+        <ActionButton type="button" variant="secondary" class="!border-green-600 !bg-green-600 !text-white hover:!bg-green-700" @click="exportLista">
+          <span v-if="downloading">Preparando...</span>
+          <span v-else class="inline-flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Descargar lista
+          </span>
+        </ActionButton>
       </template>
     </PageHeader>
 
@@ -96,6 +105,31 @@
         </div>
       </div>
     </transition>
+
+    <!-- Acceso rápido: Descargar lista -->
+    <div class="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-start gap-3">
+        <div class="p-2.5 bg-green-600 rounded-xl text-white shadow-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-base font-black text-green-900">Descargar lista de artículos</h3>
+          <p class="text-sm text-green-800/80">Bajá tu lista personalizada en Excel con precios según tu condición comercial (favoritos).</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-green-700 disabled:opacity-60" :disabled="downloading" @click="exportLista">
+          <svg v-if="!downloading" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span v-if="downloading" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+          {{ downloading ? 'Preparando...' : 'Descargar Excel' }}
+        </button>
+        <RouterLink to="/productos" class="inline-flex items-center justify-center rounded-lg border border-green-600 bg-white px-5 py-2.5 text-sm font-bold text-green-700 hover:bg-green-50">Ver catálogo</RouterLink>
+      </div>
+    </div>
 
     <!-- Información del Usuario -->
     <div class="bg-white backdrop-blur-sm rounded-2xl shadow-lg border border-gray-300 p-6 sm:p-8 transition-all hover:shadow-xl w-full">
@@ -312,6 +346,8 @@ import { getDashboardKpis } from '../services/dashboard'
 import ComprasPagosChart from '../components/ComprasPagosChart.vue'
 import ActionButton from '@/components/ui/ActionButton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
+import api from '@/services/api'
+import * as XLSX from 'xlsx'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -328,6 +364,60 @@ const kpis = ref({
 })
 const kpisLoading = ref(false)
 const kpisError = ref(false)
+const downloading = ref(false)
+
+const notify = (msg, type = 'info') => {
+  if (window.Toast?.show) window.Toast.show(msg, type, 4000)
+  else if (type === 'error') console.error(msg)
+  else console.log(msg)
+}
+
+const exportLista = async () => {
+  if (downloading.value) return
+  downloading.value = true
+  try {
+    notify('Preparando exportación de favoritos...', 'info')
+    const modalidad = localStorage.getItem('articulos_modalidad') || 'retira'
+    const conImpuestos = (localStorage.getItem('articulos_con_impuestos') ?? 'true') === 'true'
+    const condicionPago = localStorage.getItem('condicion_pago') || ''
+    const params = { modalidad, con_impuestos: conImpuestos }
+    if (condicionPago) params.condicion_pago = condicionPago
+    const response = await api.get('/api/exportar-favoritos/', { params })
+    if (response.data?.success) {
+      const { data, total_articulos, parametros } = response.data
+      if (!data || data.length === 0) {
+        notify('No tenés artículos favoritos para exportar. Marcá productos como favoritos en el catálogo.', 'info')
+        return
+      }
+      const excelData = data.map(art => ({
+        'Clave': art.clave,
+        'Nombre': art.nombre,
+        'Unidad': art.unidad,
+        'Peso': art.peso,
+        'IVA': `${art.iva}%`,
+        'Precio Actual': art.precio_actual,
+        'Modalidad': art.modalidad,
+        'Con Impuestos': art.con_impuestos ? 'Sí' : 'No',
+        'Última Actualización': art.ultima_actualizacion,
+      }))
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Artículos Favoritos')
+      const fecha = new Date().toISOString().split('T')[0]
+      const fileName = `favoritos_${parametros.modalidad}_${parametros.con_impuestos ? 'con' : 'sin'}_impuestos_${fecha}.xlsx`
+      XLSX.writeFile(workbook, fileName)
+      notify(`✅ ${total_articulos} artículos exportados correctamente.`, 'success')
+    } else {
+      notify('Error al preparar la exportación.', 'error')
+    }
+  } catch (error) {
+    console.error('Error en exportación:', error)
+    const msg = error.response?.data?.error || 'Error al exportar favoritos. Intentá nuevamente.'
+    notify(msg, 'error')
+  } finally {
+    downloading.value = false
+  }
+}
 
 // Nombre completo
 const fullName = computed(() => {
