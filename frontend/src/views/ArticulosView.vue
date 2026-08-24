@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import * as XLSX from 'xlsx'
@@ -74,8 +74,9 @@ const viewMode = ref('grid')
 
 // Detectar si es escritorio
 const isDesktop = ref(window.innerWidth >= 768)
-
-// Leer query de ruta para filtros especiales (ej: ?discontinuados=1)
+const injectedIsSidebarOpen = inject('isSidebarOpen', ref(false))
+const injectedIsMobile = inject('isMobile', ref(false))
+const hideSearchDueToDrawer = computed(() => injectedIsSidebarOpen.value && injectedIsMobile.value)
 const route = useRoute()
 const showOnlyDiscontinuados = computed(() => {
   const q = route?.query?.discontinuados
@@ -940,7 +941,7 @@ onMounted(() => {
 
 
         <!-- Barra de búsqueda -->
-        <div class="mobile-search-card relative !z-[5] rounded-lg border border-red-200 bg-white shadow-md" style="z-index:5">
+        <div v-show="!hideSearchDueToDrawer" class="mobile-search-card relative !z-[5] rounded-lg border border-red-200 bg-white shadow-md" style="z-index:5">
           <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               <p class="text-sm font-black text-gray-950">Armar pedido</p>

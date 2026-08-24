@@ -1,5 +1,5 @@
 <template>
-  <div class="xl:hidden">
+  <div v-show="!hideDueToSidebar" class="xl:hidden">
     <button
       type="button"
       class="fixed inset-x-3 bottom-3 z-10 flex items-center justify-between rounded-xl bg-red-600 px-4 py-3 text-white shadow-2xl"
@@ -90,11 +90,14 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, inject } from 'vue'
 import { cart } from '@/services/cart'
 
 const open = ref(false)
 const closeButton = ref(null)
+const injectedIsSidebarOpen = inject('isSidebarOpen', ref(false))
+const injectedIsMobile = inject('isMobile', ref(false))
+const hideDueToSidebar = computed(() => injectedIsSidebarOpen.value && injectedIsMobile.value)
 
 const money = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0)
 const isM2 = (item) => (item.articulo.campoa1 || '').toLowerCase() === 'a' && Number(item.articulo.mts2) > 0

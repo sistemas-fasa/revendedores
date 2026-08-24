@@ -16,11 +16,14 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, provide } from 'vue'
 import Navbar from '@/components/Navbar.vue'
 import Sidebar from '@/components/Sidebar.vue'
 
 const isSidebarOpen = ref(window.innerWidth >= 768)
+const isMobile = ref(window.innerWidth < 768)
+provide('isSidebarOpen', isSidebarOpen)
+provide('isMobile', isMobile)
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value
@@ -28,6 +31,7 @@ const toggleSidebar = () => {
 
 const syncSidebarWithViewport = () => {
   isSidebarOpen.value = window.innerWidth >= 768
+  isMobile.value = window.innerWidth < 768
 }
 
 onMounted(() => {
