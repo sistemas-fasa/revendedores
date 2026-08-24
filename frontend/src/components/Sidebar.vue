@@ -68,7 +68,7 @@ onUnmounted(() => {
 <template>
   <aside
     :class="[
-      'fixed inset-y-0 z-40 flex w-72 flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-300 md:static md:w-64 md:shadow-none',
+      'fixed inset-y-0 z-[80] flex w-72 flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-300 md:static md:z-auto md:w-64 md:shadow-none',
       isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
     ]"
   >
@@ -138,6 +138,6 @@ onUnmounted(() => {
   <div
     v-if="isSidebarOpen && isMobile"
     @click="$emit('toggle')"
-    class="fixed inset-0 z-30 bg-black/40 md:hidden"
+    class="fixed inset-0 z-[70] bg-black/40 md:hidden"
   ></div>
 </template>

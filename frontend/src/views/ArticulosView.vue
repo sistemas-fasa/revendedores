@@ -940,7 +940,7 @@ onMounted(() => {
 
 
         <!-- Barra de búsqueda -->
-        <div class="mobile-search-card relative rounded-lg border border-red-200 bg-white shadow-md">
+        <div class="mobile-search-card relative !z-[5] rounded-lg border border-red-200 bg-white shadow-md" style="z-index:5">
           <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               <p class="text-sm font-black text-gray-950">Armar pedido</p>
