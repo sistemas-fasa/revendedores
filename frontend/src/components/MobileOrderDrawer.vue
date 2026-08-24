@@ -2,7 +2,7 @@
   <div class="xl:hidden">
     <button
       type="button"
-      class="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-xl bg-red-600 px-4 py-3 text-white shadow-2xl"
+      class="fixed inset-x-3 bottom-3 z-10 flex items-center justify-between rounded-xl bg-red-600 px-4 py-3 text-white shadow-2xl"
       @click="openDrawer"
     >
       <span class="flex items-center gap-2 font-black">
@@ -14,7 +14,7 @@
 
     <div
       v-if="open"
-      class="fixed inset-0 z-50 bg-black/45"
+      class="fixed inset-0 z-40 bg-black/45"
       aria-hidden="true"
       @click="closeDrawer"
     ></div>
@@ -24,7 +24,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="mobile-order-title"
-      class="fixed inset-x-0 bottom-0 z-[60] max-h-[88vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl"
+      class="fixed inset-x-0 bottom-0 z-50 max-h-[88vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl"
     >
       <header class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div>
