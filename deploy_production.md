@@ -1,19 +1,180 @@
 # Deploy de Producción — `ventas.ferreteriaavenida.com.ar`
 
-> Procedimiento operativo para desplegar cambios del repo `revendedores` en
-> el servidor de producción `fasa_195` (192.168.0.195).
+> **Stack actual: Coolify sobre `fasa_189` (192.168.0.189).**
+> Ver la sección **[0. Setup actual y procedimiento de deploy](#0-setup-actual-y-procedimiento-de-deploy-coolify--fasa_189)**.
+>
+> La sección 1 documenta el setup **anterior** (`fasa_195` + nginx/systemd), que
+> **ya no está en uso**: las imágenes hoy se construyen en el server y se
+> despliegan vía la API de Coolify.
+
 >
 > **Dominio:** `https://ventas.ferreteriaavenida.com.ar`
-> **Rama canónica:** `ui-venta-rapida`
-> **Path del proyecto en el server:** `/var/www/html/reventa/`
->
-> ⚠️ **En este server conviven dos stacks** que se deployan de forma distinta:
-> el stack Docker de **pruebas** (puerto 15173/18089) y el stack de
-> **producción** (puerto 443/8088). Este documento describe el de **producción**.
+> **Rama canónica:** `main`
+> **Servidor:** `fasa_189` (192.168.0.189) — usuario `fasa`, key `~/.ssh/id_ed25519`
+> **Panel Coolify:** `https://coolify.vogelconsultoria.com.ar`
 
 ---
 
-## 1. Topología de producción
+## 0. Setup actual y procedimiento de deploy (Coolify / fasa_189)
+
+### 0.1 Topología
+
+```
+Internet
+  └── coolify-proxy (Traefik v3.6)
+        └── frontend-1ezipmojg…   (nginx:alpine, imagen fasa-revendedores-frontend:staging)
+              ├── /            → /usr/share/nginx/html  (SPA Vue compilada)
+              └── /api/, /media/, /static/, /admin/, /t/  → http://backend:8000
+                    └── backend-1ezipmojg…  (gunicorn, imagen fasa-revendedores-backend:staging-env2)
+                          └── MySQL externo  192.168.0.150:3306   (DB `revendedores` + `fasa`)
+```
+
+> El contenedor `mysql` del compose **no** es el que usa la app: el backend
+> conecta al MySQL **externo** `192.168.0.150:3306` (definido en
+> `/srv/fasa-data/data/revendedores/.env.docker`).
+
+### 0.2 Componentes y paths en el server
+
+| Qué | Dónde |
+|---|---|
+| Source del proyecto | `/srv/fasa-data/compose/revendedores-src/` (**no es un repo git**) |
+| Compose de Coolify | `/srv/fasa-data/compose/revendedores-coolify.compose.yml` |
+| Secrets / env del backend | `/srv/fasa-data/data/revendedores/.env.docker` → montado como `/run/secrets/revendedores.env` |
+| Media y logs (volumes) | `/srv/fasa-data/data/revendedores/{media,logs}` |
+| Registry local de imágenes | `127.0.0.1:5000` (`registry:2` en el host) |
+| Imagen backend | `127.0.0.1:5000/fasa-revendedores-backend:staging-env2` |
+| Imagen frontend | `127.0.0.1:5000/fasa-revendedores-frontend:staging` |
+| Dockerfile backend | `revendedores-src/staging/Dockerfile.revendedores.backend` |
+| Dockerfile frontend | `revendedores-src/docker/Dockerfile.frontend` |
+
+**IDs de Coolify** (para la API):
+
+| Recurso | UUID |
+|---|---|
+| Proyecto | `l0h5euhntsennj8llc1t1f99` |
+| Entorno `production` | `fiztusoqxra9y9toj29ibt9y` |
+| Servicio (compose) | `1ezipmojg3zemckxlug8ndjv` |
+| Sub-aplicación backend | `suoalpnbt3xhmsppgrwzzdea` |
+| Sub-aplicación frontend | `qeqfukgjmxwecbvdagxffqnm` |
+
+> El servicio se llama `revendedores-staging` **pero sirve el dominio de
+> producción** y vive en el entorno `production`. El nombre es engañoso.
+
+### 0.3 Procedimiento de deploy
+
+Las imágenes **no** se construyen en Coolify: se construyen en el server y se
+pushean al registry local. La secuencia completa es:
+
+**1. Mergear a `main`** (los deploys salen de `main`).
+
+**2. Sincronizar el source en el server** (el source no es un repo git):
+
+```bash
+ssh fasa_189
+BUILD=/tmp/revend-build
+git clone --depth 1 --branch main https://github.com/sistemas-fasa/revendedores.git $BUILD
+# …o actualizar un clone existente:
+git -C $BUILD fetch --depth 1 origin main && git -C $BUILD checkout -q FETCH_HEAD
+
+SRC=/srv/fasa-data/compose/revendedores-src
+# backup antes de tocar nada
+tar czf /tmp/revendedores-src-backup-$(date +%Y%m%d-%H%M%S).tar.gz \
+  -C /srv/fasa-data/compose revendedores-src/backend revendedores-src/frontend/src
+
+chmod -R u+w $SRC/backend $SRC/frontend/src
+rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
+  $BUILD/backend/ $SRC/backend/
+rsync -a --exclude '__pycache__' $BUILD/frontend/src/ $SRC/frontend/src/
+cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html} $SRC/frontend/
+```
+
+**3. Construir y pushear las imágenes:**
+
+```bash
+cd $SRC
+docker build -f staging/Dockerfile.revendedores.backend \
+  -t 127.0.0.1:5000/fasa-revendedores-backend:staging-env2 .
+docker build -f docker/Dockerfile.frontend \
+  -t 127.0.0.1:5000/fasa-revendedores-frontend:staging .
+docker push 127.0.0.1:5000/fasa-revendedores-backend:staging-env2
+docker push 127.0.0.1:5000/fasa-revendedores-frontend:staging
+```
+
+**4. Redeploy vía la API de Coolify** (solo las apps que cambiaron; MySQL no se toca):
+
+```bash
+TOKEN='<token de la API de Coolify>'
+BASE=https://coolify.vogelconsultoria.com.ar/api/v1
+SVC=1ezipmojg3zemckxlug8ndjv
+
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "$BASE/services/$SVC/applications/suoalpnbt3xhmsppgrwzzdea/start?latest=true&force=true"
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "$BASE/services/$SVC/applications/qeqfukgjmxwecbvdagxffqnm/start?latest=true&force=true"
+```
+
+### 0.4 Verificación post-deploy
+
+```bash
+# 1. Las imágenes nuevas están corriendo
+docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep 1ezipmojg
+docker inspect -f '{{.Image}}' backend-1ezipmojg3zemckxlug8ndjv
+
+# 2. El fix está dentro del contenedor
+docker exec backend-1ezipmojg3zemckxlug8ndjv grep -c FechaContableField /app/api/models.py
+
+# 3. La API responde (usar el Host real: si no, 400 por ALLOWED_HOSTS)
+curl -s -H "Host: ventas.ferreteriaavenida.com.ar" \
+  "http://<ip-backend>:8000/api/comprobantes/" -H "Authorization: Bearer <jwt>"
+
+# 4. Sin errores nuevos en el log
+docker logs --since 10m backend-1ezipmojg3zemckxlug8ndjv | grep -iE "Traceback|Error"
+```
+
+Para los comandos que corren Django dentro del contenedor hay que usar el
+entrypoint, porque es el que carga `/run/secrets/revendedores.env`:
+
+```bash
+docker exec backend-1ezipmojg… revendedores-entrypoint python manage.py shell -c "…"
+```
+
+### 0.5 Rollback
+
+El digest anterior queda registrado en el registry. Para volver atrás:
+
+1. `docker pull 127.0.0.1:5000/fasa-revendedores-backend@sha256:<digest-anterior>`
+2. Reetiquetar el tag al digest viejo:
+   `docker tag 127.0.0.1:5000/fasa-revendedores-backend@sha256:<anterior> 127.0.0.1:5000/fasa-revendedores-backend:staging-env2`
+3. `docker push` del tag y redeploy con `?latest=true`.
+
+También hay backups del source en `/tmp/revendedores-src-backup-*.tar.gz`.
+
+### 0.6 Gotchas
+
+- **`restart` NO hace pull.** `POST …/applications/{uuid}/restart` reinicia el
+  contenedor con la imagen **local vieja**. Para tomar la imagen nueva del
+  registry hay que usar `POST …/applications/{uuid}/start?latest=true&force=true`.
+- **El source del server tiene código que NO está en git.** El feature bot
+  (`api/services/bot_*.py`, `api/bot_views.py`, migraciones 0027/0028/0031)
+  vive **solo en el server**. Por eso el `rsync` **no debe usar `--delete`**:
+  se perdería ese código. Verificá que sigue presente después del sync.
+- **El source no es un repo git**: los cambios se sincronizan con `rsync`
+  desde un clone de `main`, no con `git pull`.
+- **`docker exec` no carga el env**: sin el entrypoint, Django falla con
+  `SECRET_KEY not found`.
+- **`ALLOWED_HOSTS`**: al curls directo contra el contenedor hay que mandar
+  `-H "Host: ventas.ferreteriaavenida.com.ar"`, si no responde 400.
+- **El service deploy completo** (`POST /services/{uuid}/start`) devuelve 400
+  si el servicio ya está `running`. Para redeployar se va por aplicación.
+
+---
+
+## 1. Setup anterior (fasa_195 + nginx/systemd) — histórico, ya no vigente
+
+> ⚠️ **Este setup ya no está en uso.** La producción migró a Coolify sobre
+> `fasa_189` (ver sección 0). Se conserva como referencia histórica.
+
+### 1.0 Topología de producción
 
 ### 1.1 Servicios activos
 
