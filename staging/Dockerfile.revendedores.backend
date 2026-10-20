@@ -1,0 +1,30 @@
+# Dockerfile de produccion del backend (Coolify / fasa_189).
+#
+# Es el que se buildea en el server para generar la imagen del backend:
+#   docker build -f staging/Dockerfile.revendedores.backend \
+#     -t 127.0.0.1:5000/fasa-revendedores-backend:staging-env2 .
+#
+# Se diferencia de docker/Dockerfile.backend en que instala el entrypoint
+# que carga /run/secrets/revendedores.env y corre collectstatic.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc default-libmysqlclient-dev pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt gunicorn
+
+COPY backend/ .
+COPY staging/revendedores-entrypoint.sh /usr/local/bin/revendedores-entrypoint
+RUN chmod 0755 /usr/local/bin/revendedores-entrypoint
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/revendedores-entrypoint"]
+CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120"]

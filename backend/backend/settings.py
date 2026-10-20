@@ -51,6 +51,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise sirve /static/ (CSS del admin de Django, DRF, etc.) desde el
+    # propio backend. Va aca porque, como WhiteNoise, necesita ir arriba:
+    # intercepta antes que CommonMiddleware y antes que el handler de archivos.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -139,9 +143,28 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+# OJO: la barra inicial importa. Con 'static/' (sin barra) Django genera
+# URLs relativas tipo "static/admin/css/base.css", que desde /admin/ resuelven
+# a /admin/static/... y dan 404. Con WhiteNoise tampoco intercepta, porque
+# compara el path completo contra el prefijo.
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+
+# WhiteNoise sirve los static files desde el propio backend. Sin esto, Django
+# bajo gunicorn no los sirve (el servidor de static files de Django es solo
+# para desarrollo) y /static/ daba 404: el CSS del admin de Django nunca
+# cargaba.
+# Se usa la variante SIN manifest a proposito: no exige que collectstatic
+# falle si algun template referencia un archivo inexistente.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

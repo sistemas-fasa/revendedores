@@ -81,11 +81,13 @@ SRC=/srv/fasa-data/compose/revendedores-src
 tar czf /tmp/revendedores-src-backup-$(date +%Y%m%d-%H%M%S).tar.gz \
   -C /srv/fasa-data/compose revendedores-src/backend revendedores-src/frontend/src
 
-chmod -R u+w $SRC/backend $SRC/frontend/src $SRC/docker
+chmod -R u+w $SRC/backend $SRC/frontend/src $SRC/docker $SRC/staging $SRC/scripts
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
   $BUILD/backend/ $SRC/backend/
 rsync -a --exclude '__pycache__' $BUILD/frontend/src/ $SRC/frontend/src/
 rsync -a $BUILD/docker/nginx/ $SRC/docker/nginx/
+rsync -a $BUILD/staging/ $SRC/staging/
+rsync -a $BUILD/scripts/ $SRC/scripts/
 cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html} $SRC/frontend/
 ```
 
@@ -94,6 +96,15 @@ cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html}
 > la config de nginx queda horneada en la imagen. Sin este sync, los cambios en
 > `docker/nginx/default.conf` **nunca llegan a producción** (y el build usa
 > silenciosamente la conf vieja que quedó en el server).
+>
+> El `rsync` de `staging/` también es obligatorio: el build del backend usa
+> `staging/Dockerfile.revendedores.backend`, que copia
+> `staging/revendedores-entrypoint.sh` (el que carga el env del secret y corre
+> `collectstatic`). Si no se sincroniza, el build usa el entrypoint viejo que
+> quedó en el server.
+>
+> El `rsync` de `scripts/` es lo que deja el script de cron en el path que
+> usa el crontab (ver 0.11).
 >
 > `chmod -R u+w` incluye `$SRC/docker` porque en el server ese árbol es
 > read-only (`dr-xr-sr-x`) y `rsync` necesita permiso de escritura en el
@@ -271,6 +282,128 @@ docker exec backend-1ezipmojg… revendedores-entrypoint \
   python manage.py normalizar_imagenes --dry-run
 ```
 
+
+### 0.9 `/static/`: el CSS del admin de Django
+
+El admin de Django (`/admin/`) llegaba **sin CSS**: sin estilos, todo en HTML
+crudo. El backend corre bajo gunicorn, y **gunicorn no sirve archivos
+estáticos** (el server de estáticos de Django es solo para desarrollo).
+
+Había dos problemas encadenados:
+
+1. `STATIC_URL = 'static/'` (sin barra inicial) → Django generaba URLs
+   **relativas** (`static/admin/css/base.css`), que desde `/admin/` resuelven a
+   `/admin/static/...` → 404.
+2. No había nadie que sirviera `/static/`: el nginx del frontend lo manda al
+   backend, y el backend no lo servía.
+
+La solución es **WhiteNoise** (middleware que sirve los estáticos desde el
+propio proceso, con gzip/brotli y cache headers):
+
+- `backend/requirements.txt`: `whitenoise==6.12.0`
+- `backend/backend/settings.py`: `STATIC_URL = '/static/'` (con barra) y el
+  bloque `STORAGES` con `whitenoise.storage.CompressedStaticFilesStorage`
+- `backend/backend/settings.py`: `'whitenoise.middleware.WhiteNoiseMiddleware'`
+  en `MIDDLEWARE`, después de `SecurityMiddleware`
+- `staging/revendedores-entrypoint.sh`: corre `manage.py collectstatic
+  --noinput` **antes** de levantar gunicorn, para poblar `/app/staticfiles`
+
+> Se usa la variante **sin manifest** a propósito: `ManifestStaticFilesStorage`
+> hace fallar el `collectstatic` si algún template referencia un archivo que no
+> existe, y eso abortaría el arranque del container.
+>
+> Si el `collectstatic` falla, el entrypoint **no aborta**: loguea el error y
+> sigue levantando gunicorn. Es preferible un backend sin CSS que un backend
+> caído.
+
+Verificar:
+
+```bash
+# El CSS del admin tiene que dar 200 y content-type de CSS
+curl -sI https://ventas.ferreteriaavenida.com.ar/static/admin/css/base.css | head -5
+# El HTML del admin tiene que apuntar a /static/ (no a una ruta relativa)
+curl -s https://ventas.ferreteriaavenida.com.ar/admin/login/ | grep -o 'href="[^"]*base\.css[^"]*"'
+```
+
+> **Gotcha:** `backend/static/` existe en el server (163 archivos: el CSS/JS del
+> admin y el de DRF) pero **no está versionado en git**. Por eso
+> `STATICFILES_DIRS` apunta a un directorio inexistente cuando se construye la
+> imagen desde git puro: Django loguea el warning `W004` y sigue. No es
+> bloqueante, pero es la razón de que el admin se vea distinto si se compara
+> con el server. Si alguna vez se versiona, ese warning desaparece.
+
+
+### 0.10 `/health/`: el health check público
+
+Había dos confusiones:
+
+- `/health/` **no** estaba expuesto en el dominio público: caía en el
+  `location /` del nginx del frontend y devolvía el `index.html` de la SPA con
+  **HTTP 200**. Un monitor que chequea solo el status code daba **falso
+  positivo**: el backend podía estar caído y el chequeo pasaba igual.
+- `/api/health/` devolvía **404** de Django, porque la ruta real es `/health/`
+  (ver `backend/backend/urls.py`).
+
+Ahora el nginx del frontend tiene un match exacto:
+
+```nginx
+location = /health/ {
+    proxy_pass http://backend:8000/health/;
+    proxy_set_header Host $host;
+    access_log off;
+}
+```
+
+El `=` (match exacto) gana sobre cualquier otra location, así que esta
+request nunca cae en la SPA. Y el backend devuelve JSON:
+
+```json
+{"status": "ok", "service": "ventas-ferreteria", "database": "ok", "version": "…", "time": "…"}
+```
+
+El chequeo incluye un `SELECT 1` contra la base, así que un 200 con
+`"status": "ok"` significa que **el backend y la base** están respondiendo.
+Un 500 con `"database": "error"` significa que el backend está vivo pero la
+base no.
+
+```bash
+curl -s https://ventas.ferreteriaavenida.com.ar/health/
+```
+
+> El workflow de n8n *"Monitor Servicios Producción - Nginx Apps"*
+> (id `eCd4Cm9oz28szmTc`) está **inactivo** y chequea la raíz del sitio, no un
+> health endpoint, y además apunta al server viejo `192.168.0.195` para varios
+> servicios. Conviene reactivarlo y apuntarlo a
+> `https://ventas.ferreteriaavenida.com.ar/health/`.
+
+
+### 0.11 Automatizar la normalización de imágenes (cron)
+
+La importación del ERP corre en otro host (`192.168.0.150`, `debian-fasa`) y
+**no hay acceso SSH** a esa máquina, así que no se puede enganchar un hook al
+importador. La automatización se hace con un **cron en el server de la app**:
+el comando es idempotente y tarda ~4 segundos, así que correrlo cada 30
+minutos es barato y cubre cualquier importación.
+
+El script está versionado en `scripts/normalizar-imagenes-cron.sh` (se
+sincroniza al server con el `rsync` del paso 2 de 0.3). Instalar en el host
+`fasa_189`, usuario `fasa`:
+
+```bash
+SRC=/srv/fasa-data/compose/revendedores-src
+
+crontab -l 2>/dev/null | grep -v 'normalizar-imagenes-cron.sh' > /tmp/cron.txt || true
+echo "*/30 * * * * $SRC/scripts/normalizar-imagenes-cron.sh" >> /tmp/cron.txt
+crontab /tmp/cron.txt
+
+# Verificar
+crontab -l
+```
+
+Log: `/srv/fasa-data/data/revendedores/logs/normalizar-imagenes.log`.
+
+El script resuelve el nombre del contenedor **en cada corrida** (el sufijo lo
+genera Coolify), y si el backend no está corriendo lo saltea sin error.
 
 
 ---

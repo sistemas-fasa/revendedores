@@ -1,0 +1,4 @@
+# Los scripts de shell se copian al server y se ejecutan dentro del container.
+# Si el checkout llegara con CRLF, el shebang "#!/bin/sh\r" rompe la ejecucion.
+*.sh text eol=lf
+Dockerfile* text eol=lf
