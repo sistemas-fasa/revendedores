@@ -224,6 +224,55 @@ cd /tmp/rev && docker compose up -d --no-deps --force-recreate frontend
 > la conf vieja. Por eso hay que pushear la imagen igual.
 
 
+### 0.8 Imágenes de productos: case del filesystem y archivos faltantes
+
+Las imágenes de productos se sirven desde `/media/` → backend → Django
+(`Articulos.imagen`). Hay **dos problemas distintos** que se ven igual en el
+navegador (el texto alternativo en vez de la foto):
+
+**1. Case de la extensión (arreglado).** La importación del ERP dejó
+referencias con la extensión en mayúscula (`002.534.PNG`, `COR.000.jpg`)
+mientras que el archivo en disco está en minúscula (`002.534.png`,
+`cor.000.jpg`). En Linux el filesystem es case-sensitive, así que esas URLs
+daban 404.
+
+Se corrige con un comando, **no con una migración**: el grafo de migraciones
+del server tiene hojas que solo existen en producción (`0028_rename_botconversation_indexes`,
+`0031_merge_20260821_1033`), así que agregar una migración nueva en el repo
+genera un segundo nodo hoja y `manage.py migrate` falla con *"Conflicting
+migrations detected"*.
+
+```bash
+# Ver qué haría, sin tocar nada
+docker exec backend-1ezipmojg… revendedores-entrypoint \
+  python manage.py normalizar_imagenes --dry-run
+
+# Aplicar
+docker exec backend-1ezipmojg… revendedores-entrypoint \
+  python manage.py normalizar_imagenes
+```
+
+> **Correrlo después de cada importación del ERP**, que es lo que introduce
+> el case incorrecto. El comando es idempotente.
+>
+> El comando compara contra el listado exacto del directorio (`os.listdir`), no
+> contra `os.path.exists`, porque en Windows `exists()` es case-insensitive y
+> el resultado sería distinto según el sistema.
+
+**2. Archivos que directamente no existen (sin resolver).** Hay referencias en
+la DB a imágenes que no están en `MEDIA_ROOT` ni en mayúscula ni en minúscula.
+Aproximadamente **570 referencias (~570 artículos)** al momento de esta
+documentación. Estas **no** se pueden arreglar desde la app: hay que copiar
+el archivo al `media/` del server o corregir el dato en el ERP.
+
+```bash
+# Listar las que faltan (el comando las reporta al final)
+docker exec backend-1ezipmojg… revendedores-entrypoint \
+  python manage.py normalizar_imagenes --dry-run
+```
+
+
+
 ---
 
 ## 1. Setup anterior (fasa_195 + nginx/systemd) — histórico, ya no vigente
