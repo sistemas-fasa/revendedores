@@ -6,7 +6,7 @@
     >
       <template #actions>
         <button 
-          @click="loadComprobantes"
+          @click="loadComprobantes(paginacion.current_page)"
           :disabled="loading"
           class="ui-button ui-button-primary px-4 py-2.5 text-sm disabled:opacity-50"
         >

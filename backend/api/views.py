@@ -42,6 +42,24 @@ import logging
 logger = logging.getLogger('api')
 
 
+def _param_int(request, nombre, default, minimo=None, maximo=None):
+    """Lee un parámetro entero del query string sin romper con valores basura.
+
+    El frontend manda lo que le pasa por el `@click` (por ejemplo un
+    PointerEvent) y `int()` reventaba la vista con HTTP 500. Con valores no
+    numéricos se usa el default en vez de tirar la request.
+    """
+    try:
+        valor = int(request.GET.get(nombre, default))
+    except (TypeError, ValueError):
+        return default
+    if minimo is not None and valor < minimo:
+        return default
+    if maximo is not None and valor > maximo:
+        return maximo
+    return valor
+
+
 def _build_short_code(length=8):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
@@ -1064,8 +1082,8 @@ def comprobantes_cliente(request):
         from datetime import datetime
 
         # Obtener parámetros de filtro y paginación
-        page = int(request.GET.get('page', 1))
-        page_size = int(request.GET.get('page_size', 20))
+        page = _param_int(request, 'page', 1, minimo=1)
+        page_size = _param_int(request, 'page_size', 20, minimo=1, maximo=100)
         fecha_desde = request.GET.get('fecha_desde')
         fecha_hasta = request.GET.get('fecha_hasta')
         codigo_tipo = request.GET.get('codigo')  # F, D, R, C
