@@ -17,7 +17,8 @@ production:
   backend_image: 127.0.0.1:5000/fasa-revendedores-backend:staging-env2
   domain: ventas.ferreteriaavenida.com.ar
   public_url: https://ventas.ferreteriaavenida.com.ar
-  health_url: https://ventas.ferreteriaavenida.com.ar/api/health/
+  health_url: http://backend:8000/health/
+  health_url_not_public: true
   internal_backend_url: http://backend:8000
   internal_health_url: http://backend:8000/health/
   frontend_root: /usr/share/nginx/html
@@ -38,11 +39,16 @@ application:
   database_host: 192.168.0.150:3306
 
 health:
-  public_path: /api/health/
+  public_path: /health/
   internal_path: /health/
   expected_status: 200
   expected_json_status: ok
   requires_auth: false
+  notes:
+    - El health check NO está expuesto en el dominio público: /health/ cae en
+      el location / del nginx del frontend y devuelve el index.html de la SPA,
+      y /api/health/ devuelve 404 de Django. El check real se hace desde la
+      red de compose: http://backend:8000/health/
   checks:
     - application
     - database

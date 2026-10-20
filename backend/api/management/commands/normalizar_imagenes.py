@@ -84,27 +84,37 @@ class Command(BaseCommand):
             if archivo in en_disco:
                 continue
 
-            minuscula = archivo.lower()
-            if minuscula in en_disco:
+            # La importacion del ERP deja dos tipo de basura en la referencia:
+            # la extension en mayuscula y espacios al final. Las dos hacen que
+            # la URL no resuelva al archivo real.
+            sin_espacios = archivo.strip()
+            minuscula = sin_espacios.lower()
+
+            if minuscula in en_disco and minuscula != archivo:
                 nuevo = '/'.join(partes[:-1] + [minuscula])
-                a_corregir.append((nombre, nuevo, pks))
+                a_corregir.append((nombre, nuevo, pks, 'case/espacios'))
+            elif sin_espacios in en_disco:
+                nuevo = '/'.join(partes[:-1] + [sin_espacios])
+                a_corregir.append((nombre, nuevo, pks, 'espacios'))
             else:
                 ausentes.append((nombre, pks))
 
         self.stdout.write('')
-        self.stdout.write(f'Filas a corregir por case: {len(a_corregir)} referencias '
-                          f'({sum(len(p) for _, _, p in a_corregir)} articulos)')
+        self.stdout.write(f'Filas a corregir: {len(a_corregir)} referencias '
+                          f'({sum(len(p) for _, _, p, _ in a_corregir)} articulos)')
         self.stdout.write(f'Referencias sin archivo en disco: {len(ausentes)} '
                           f'({sum(len(p) for _, p in ausentes)} articulos)')
 
-        for nombre, nuevo, pks in a_corregir[:20]:
-            self.stdout.write(self.style.SUCCESS(f'  {nombre} -> {nuevo}  ({len(pks)} articulos)'))
+        for nombre, nuevo, pks, motivo in a_corregir[:20]:
+            self.stdout.write(self.style.SUCCESS(
+                f'  {nombre!r} -> {nuevo!r}  ({len(pks)} articulos, {motivo})'
+            ))
         if len(a_corregir) > 20:
             self.stdout.write(f'  ... y {len(a_corregir) - 20} mas')
 
         corregidos = 0
         if not dry_run:
-            for nombre, nuevo, pks in a_corregir:
+            for nombre, nuevo, pks, motivo in a_corregir:
                 corregidos += Articulos.objects.filter(pk__in=pks).update(imagen=nuevo)
 
         if ausentes:
@@ -124,7 +134,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING(
                 f'DRY-RUN: {len(a_corregir)} referencias se corregirian '
-                f'({sum(len(p) for _, _, p in a_corregir)} articulos)'
+                f'({sum(len(p) for _, _, p, _ in a_corregir)} articulos)'
             ))
         else:
             self.stdout.write(self.style.SUCCESS(f'Articulos actualizados: {corregidos}'))
