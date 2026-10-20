@@ -5,31 +5,37 @@ environment: production
 priority: critica
 
 development:
-  source_path_windows: 'X:\web\revendedores'
+  source_path_windows: 'D:\programacion\web\revendedores'
 
 production:
-  server: fg-ubuntu
-  server_ip: 192.168.0.195
-  project_path: /var/www/html/reventa
+  server: fasa_189
+  server_ip: 192.168.0.189
+  project_path: /srv/fasa-data/compose/revendedores-src
+  compose_file: /srv/fasa-data/compose/revendedores-coolify.compose.yml
+  registry: 127.0.0.1:5000
+  frontend_image: 127.0.0.1:5000/fasa-revendedores-frontend:staging
+  backend_image: 127.0.0.1:5000/fasa-revendedores-backend:staging-env2
   domain: ventas.ferreteriaavenida.com.ar
   public_url: https://ventas.ferreteriaavenida.com.ar
   health_url: https://ventas.ferreteriaavenida.com.ar/api/health/
-  internal_backend_url: http://127.0.0.1:8088
-  internal_health_url: http://127.0.0.1:8088/health/
-  nginx_site: /etc/nginx/sites-enabled/ventas
-  frontend_root: /var/www/html/reventa/frontend
-  backend_port: 8088
-  backend_bind: 127.0.0.1:8088
-  ssl_certificate: /etc/letsencrypt/live/ventas.ferreteriaavenida.com.ar/fullchain.pem
+  internal_backend_url: http://backend:8000
+  internal_health_url: http://backend:8000/health/
+  frontend_root: /usr/share/nginx/html
+  backend_port: 8000
+  backend_bind: backend:8000
+  media_path: /srv/fasa-data/data/revendedores/media
+  logs_path: /srv/fasa-data/data/revendedores/logs
+  ssl_certificate: letsencrypt (traefik, gestionado por Coolify)
 
 application:
   type: django
   backend_module: backend.wsgi:application
   backend_runtime: gunicorn
-  virtualenv_path_production: /var/www/html/reventa/venv
-  logs_path_production: /var/www/html/reventa/logs/gunicorn.log
+  virtualenv_path_production: /app/.venv (dentro del contenedor)
+  logs_path_production: /app/logs (bind mount a logs_path)
   uses_database: true
   database_check: SELECT 1
+  database_host: 192.168.0.150:3306
 
 health:
   public_path: /api/health/
@@ -56,25 +62,33 @@ deploy:
   do_not_modify_production_directly: true
   branch: main
   deploy_mode: manual_first
-  rollback_strategy: git_previous_commit
+  rollback_strategy: re-tag de la imagen anterior en el registry local
   requires_tests: true
   requires_migrations: false
-  requires_frontend_build: false
+  requires_frontend_build: true
+  notes:
+    - La API de Coolify 4.4.6 responde 500 para todos los tokens (bug de casts()
+      en PersonalAccessToken). Para recrear un contenedor usar el compose
+      efectivo que genera Coolify, ver deploy_production.md seccion 0.7.
 
 commands:
   test: pytest
-  django_test_alternative: python manage.py test
+  django_test_alternative: python manage.py test api.tests
   migrate: python manage.py migrate
   collectstatic: python manage.py collectstatic --noinput
-  restart: sudo systemctl restart reventa.service
-  logs: journalctl -u reventa.service -n 100 --no-pager
-  local_health_test: curl -i http://127.0.0.1:8088/health/
+  restart: docker compose -p <serviceUuid> up -d --no-deps --force-recreate <service>
+  logs: docker logs --since 10m <container>
+  local_health_test: curl -i http://backend:8000/health/
   public_health_test: curl -i https://ventas.ferreteriaavenida.com.ar/api/health/
 
 notes:
-  - Nginx ya tiene location /api/ hacia http://127.0.0.1:8088.
+  - El proxy es coolify-proxy (Traefik v3.6) y enruta por el Host
+    `ventas.ferreteriaavenida.com.ar` hacia el contenedor frontend.
+  - Las imagenes de productos se sirven en /media/ -> backend (Django).
+    El nginx del frontend debe usar `location ^~ /media/` para que la
+    location de assets estaticos no capture los .png. Ver deploy_production.md.
   - No tocar Nginx salvo que /api/health/ no llegue correctamente al backend.
   - No crear código nuevo únicamente en producción.
   - Todo cambio debe quedar en Git.
-  - El repo fuente de desarrollo está en X:\web\revendedores.
-  - La carpeta productiva Linux está en /var/www/html/reventa.
+  - El repo fuente de desarrollo está en D:\programacion\web\revendedores.
+
