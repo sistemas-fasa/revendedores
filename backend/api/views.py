@@ -27,6 +27,8 @@ from rest_framework import filters
 
 from .models import Articulos, Cliente, FormaPago, Favorito, Busqueda, Pedido, RegistroSesion, BonificacionCliente, ConsultaPrecio, ArticuloVista, LinkOpen, ShortTrackingLink
 from .serializers import ArticuloSerializer, FormaPagoSerializer, FavoritoSerializer, BusquedaSerializer, PedidoSerializer
+from .constants import TIPOS_COMPROBANTE
+from .fechas import esta_vencido, formatear_fecha
 from .services.precios import calcular_precio_articulo
 from backend.BaseViewSet import BaseAppModelViewSet
 from rest_framework import viewsets
@@ -987,9 +989,13 @@ def dashboard_kpis(request):
         )['total'] or 0
 
         # 6. Deuda vencida (saldo > 0 y fecha de vencimiento < hoy)
-        hoy = timezone.now().date()
+        #    `con_fecha_valida` excluye las filas con fecha cero del ERP
+        #    ('0000-00-00'), que en MySQL ordenarían antes que hoy y por lo
+        #    tanto se sumarían como vencidas aunque no tengan vencimiento.
+        hoy = timezone.localdate()
         deuda_vencida = cuenta_corriente.filter(
             saldo__gt=0,
+            fechaven__con_fecha_valida=True,
             fechaven__lt=hoy
         ).aggregate(
             total=Sum('saldo')
@@ -998,6 +1004,7 @@ def dashboard_kpis(request):
         # 7. Deuda por vencer (saldo > 0 y fecha de vencimiento >= hoy)
         deuda_por_vencer = cuenta_corriente.filter(
             saldo__gt=0,
+            fechaven__con_fecha_valida=True,
             fechaven__gte=hoy
         ).aggregate(
             total=Sum('saldo')
@@ -1014,7 +1021,7 @@ def dashboard_kpis(request):
             'deuda_por_vencer': float(deuda_por_vencer)
         }
 
-        print(f"📊 KPIs dashboard generados para cliente {numero_cliente}: {kpis}")
+        logger.info("KPIs dashboard generados para cliente %s: %s", numero_cliente, kpis)
 
         return Response({
             'success': True,
@@ -1026,9 +1033,7 @@ def dashboard_kpis(request):
         })
 
     except Exception as e:
-        print(f"❌ Error al obtener KPIs del dashboard: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error al obtener KPIs del dashboard")
         return Response({
             'error': 'Error al obtener KPIs del dashboard',
             'details': str(e)
@@ -1056,8 +1061,7 @@ def comprobantes_cliente(request):
         # Importar el modelo aquí para evitar problemas de importación circular
         from .models import CuentaCorrienteCliente
         from django.core.paginator import Paginator
-        from datetime import datetime, timedelta
-        from django.utils import timezone
+        from datetime import datetime
 
         # Obtener parámetros de filtro y paginación
         page = int(request.GET.get('page', 1))
@@ -1113,23 +1117,18 @@ def comprobantes_cliente(request):
         for comprobante in comprobantes_page:
             comprobantes_data.append({
                 'numero': comprobante.numero,
-                'fecha': comprobante.fecha.strftime('%Y-%m-%d'),
-                'fecha_vencimiento': comprobante.fechaven.strftime('%Y-%m-%d'),
-                'fecha_primer_vencimiento': comprobante.fecha1venc.strftime('%Y-%m-%d'),
+                'fecha': formatear_fecha(comprobante.fecha),
+                'fecha_vencimiento': formatear_fecha(comprobante.fechaven),
+                'fecha_primer_vencimiento': formatear_fecha(comprobante.fecha1venc),
                 'codigo': comprobante.codigo,
-                'tipo_comprobante': {
-                    'F': 'Factura',
-                    'D': 'Débito', 
-                    'R': 'Recibo/Pago',
-                    'C': 'Crédito'
-                }.get(comprobante.codigo, comprobante.codigo),
+                'tipo_comprobante': TIPOS_COMPROBANTE.get(comprobante.codigo, comprobante.codigo),
                 'neto': float(comprobante.neto),
                 'total': float(comprobante.total),
                 'saldo': float(comprobante.saldo),
                 'forma_pago': comprobante.forma_pago,
                 'pago': comprobante.pago,
                 'clase': comprobante.clase,
-                'estado': 'Vencido' if comprobante.fechaven < timezone.now().date() and comprobante.saldo > 0 else 'Vigente'
+                'estado': 'Vencido' if esta_vencido(comprobante) else 'Vigente'
             })
 
         # Estadísticas de la página actual
@@ -1160,7 +1159,10 @@ def comprobantes_cliente(request):
             'previous_page': comprobantes_page.previous_page_number() if comprobantes_page.has_previous() else None
         }
 
-        print(f"📄 Comprobantes obtenidos para cliente {numero_cliente}: página {page} de {paginator.num_pages}")
+        logger.info(
+            "Comprobantes obtenidos para cliente %s: pagina %s de %s",
+            numero_cliente, page, paginator.num_pages
+        )
 
         return Response({
             'success': True,
@@ -1177,9 +1179,7 @@ def comprobantes_cliente(request):
         })
 
     except Exception as e:
-        print(f"❌ Error al obtener comprobantes: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error al obtener comprobantes")
         return Response({
             'error': 'Error al obtener comprobantes',
             'details': str(e)
@@ -1213,7 +1213,10 @@ def detalle_comprobante(request, numero_comprobante):
             usuario_nombre = request.user.username
         except Exception:
             usuario_nombre = str(request.user)
-        print(f"[detalle_comprobante] solicitud usuario={usuario_nombre} cliente_num={numero_cliente} numero_comprobante={numero_comprobante}")
+        logger.info(
+            "[detalle_comprobante] solicitud usuario=%s cliente_num=%s numero_comprobante=%s",
+            usuario_nombre, numero_cliente, numero_comprobante
+        )
 
         # Primero verificar que el comprobante pertenece al cliente
         try:
@@ -1223,7 +1226,10 @@ def detalle_comprobante(request, numero_comprobante):
             )
         except CuentaCorrienteCliente.DoesNotExist:
             # LOG: detalle para depuración en servidor
-            print(f"[detalle_comprobante] NO ENCONTRADO cliente={numero_cliente} numero={numero_comprobante}")
+            logger.info(
+                "[detalle_comprobante] NO ENCONTRADO cliente=%s numero=%s",
+                numero_cliente, numero_comprobante
+            )
             return Response({
                 'error': 'Comprobante no encontrado',
                 'message': f'El comprobante {numero_comprobante} no existe o no pertenece al cliente'
@@ -1250,11 +1256,11 @@ def detalle_comprobante(request, numero_comprobante):
                 'numero': comprobante_cc.numero,
                 'codigo': comprobante_cc.codigo,
                 'tipo_comprobante': 'Recibo/Pago',
-                'fecha': comprobante_cc.fecha.strftime('%Y-%m-%d') if comprobante_cc.fecha else None,
+                'fecha': formatear_fecha(comprobante_cc.fecha),
                 'total': float(comprobante_cc.total),
                 'saldo': float(comprobante_cc.saldo),
                 'forma_pago': comprobante_cc.forma_pago,
-                'estado': 'Vencido' if comprobante_cc.fechaven < timezone.now().date() and comprobante_cc.saldo > 0 else 'Vigente'
+                'estado': 'Vencido' if esta_vencido(comprobante_cc) else 'Vigente'
             }
 
             items = []
@@ -1269,7 +1275,7 @@ def detalle_comprobante(request, numero_comprobante):
                     'detalle': c.detalle,
                     'banco': c.banco,
                     'numero': c.numero,
-                    'vence': c.vence.strftime('%Y-%m-%d') if c.vence else None,
+                    'vence': formatear_fecha(c.vence),
                     'impentra': float(c.impentra) if c.impentra is not None else 0.0,
                     'comp': c.comp
                 })
@@ -1314,9 +1320,9 @@ def detalle_comprobante(request, numero_comprobante):
                     'D': 'Nota de Débito',
                     'C': 'Nota de Crédito'
                 }.get(primer_renglon.codigo, primer_renglon.codigo),
-                'fecha': primer_renglon.fecha.strftime('%Y-%m-%d'),
-                'fecha_vencimiento': primer_renglon.fechaven.strftime('%Y-%m-%d'),
-                'fecha_primer_vencimiento': primer_renglon.fecha1venc.strftime('%Y-%m-%d'),
+                'fecha': formatear_fecha(primer_renglon.fecha),
+                'fecha_vencimiento': formatear_fecha(primer_renglon.fechaven),
+                'fecha_primer_vencimiento': formatear_fecha(primer_renglon.fecha1venc),
                 'cliente': {
                     'numero': primer_renglon.cliente,
                     'nombre': primer_renglon.nombre
@@ -1335,7 +1341,7 @@ def detalle_comprobante(request, numero_comprobante):
                     'total': float(primer_renglon.neto),
                     'saldo': float(comprobante_cc.saldo)  # Saldo actual de cuenta corriente
                 },
-                'estado': 'Vencido' if comprobante_cc.fechaven < timezone.now().date() and comprobante_cc.saldo > 0 else 'Vigente',
+                'estado': 'Vencido' if esta_vencido(comprobante_cc) else 'Vigente',
                 'forma_pago' : primer_renglon.forma_pago
             }
 
@@ -1380,9 +1386,7 @@ def detalle_comprobante(request, numero_comprobante):
         }, status=400)
 
     except Exception as e:
-        print(f"❌ Error al obtener detalle del comprobante {numero_comprobante}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error al obtener detalle del comprobante %s", numero_comprobante)
         return Response({
             'error': 'Error al obtener detalle del comprobante',
             'details': str(e)
