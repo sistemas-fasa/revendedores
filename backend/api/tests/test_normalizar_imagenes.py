@@ -102,3 +102,19 @@ class NormalizarImagenesCommandTests(TestCase):
         call_command('normalizar_imagenes', stdout=StringIO())
 
         self.assertEqual(Articulos.objects.get(clave='TST0007').imagen.name, '002.534.png')
+
+    def test_corrige_espacios_al_final(self):
+        """La importacion del ERP tambien deja espacios al final del nombre."""
+        self._crear('TST0008', '002.110.png     ')
+
+        call_command('normalizar_imagenes', stdout=StringIO())
+
+        self.assertEqual(Articulos.objects.get(clave='TST0008').imagen.name, '002.110.png')
+
+    def test_corrige_case_y_espacios_juntos(self):
+        """Case en mayuscula y espacios al final en la misma referencia."""
+        self._crear('TST0009', '002.534.PNG   ')
+
+        call_command('normalizar_imagenes', stdout=StringIO())
+
+        self.assertEqual(Articulos.objects.get(clave='TST0009').imagen.name, '002.534.png')
