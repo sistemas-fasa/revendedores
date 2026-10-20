@@ -17,8 +17,8 @@ production:
   backend_image: 127.0.0.1:5000/fasa-revendedores-backend:staging-env2
   domain: ventas.ferreteriaavenida.com.ar
   public_url: https://ventas.ferreteriaavenida.com.ar
-  health_url: http://backend:8000/health/
-  health_url_not_public: true
+  health_url: https://ventas.ferreteriaavenida.com.ar/health/
+  health_url_not_public: false
   internal_backend_url: http://backend:8000
   internal_health_url: http://backend:8000/health/
   frontend_root: /usr/share/nginx/html
@@ -45,10 +45,16 @@ health:
   expected_json_status: ok
   requires_auth: false
   notes:
-    - El health check NO está expuesto en el dominio público: /health/ cae en
-      el location / del nginx del frontend y devuelve el index.html de la SPA,
-      y /api/health/ devuelve 404 de Django. El check real se hace desde la
-      red de compose: http://backend:8000/health/
+    - El health check está expuesto en el dominio público: el nginx del
+      frontend tiene `location = /health/` (match exacto), así que la request
+      va al backend y NO cae en el index.html de la SPA. Antes caía en
+      `location /` y devolvía HTML con HTTP 200, lo que hacía que un monitor
+      que solo mira el status code diera falso positivo.
+    - La ruta real en Django es `/health/` (backend/backend/urls.py), no
+      `/api/health/` (eso da 404).
+    - El chequeo incluye un SELECT 1 contra la base: 200 con "status": "ok"
+      significa backend + base OK; 500 con "database": "error" significa que
+      el backend está vivo pero la base no responde.
   checks:
     - application
     - database
@@ -57,7 +63,13 @@ health:
 
 monitoring:
   n8n_workflow: Monitor Servicios Producción - Nginx Apps
-  enabled: true
+  n8n_workflow_id: eCd4Cm9oz28szmTc
+  enabled: false
+  enabled_note: >-
+    El workflow existe pero está INACTIVO, y chequea la raíz del sitio (que
+    devuelve el index.html de la SPA) en vez de un health endpoint, y además
+    apunta al server viejo 192.168.0.195 para varios servicios. Conviene
+    reactivarlo apuntando a https://ventas.ferreteriaavenida.com.ar/health/.
   alert_telegram: true
   alert_email: true
   consecutive_failures_before_alert: 2
@@ -85,7 +97,14 @@ commands:
   restart: docker compose -p <serviceUuid> up -d --no-deps --force-recreate <service>
   logs: docker logs --since 10m <container>
   local_health_test: curl -i http://backend:8000/health/
-  public_health_test: curl -i https://ventas.ferreteriaavenida.com.ar/api/health/
+  public_health_test: curl -i https://ventas.ferreteriaavenida.com.ar/health/
+  static_test: curl -sI https://ventas.ferreteriaavenida.com.ar/static/admin/css/base.css
+  normalizar_imagenes: >-
+    docker exec <backend-container> revendedores-entrypoint python
+    manage.py normalizar_imagenes
+  cron_normalizar_imagenes: >-
+    */30 * * * *
+    /srv/fasa-data/compose/revendedores-src/scripts/normalizar-imagenes-cron.sh
 
 notes:
   - El proxy es coolify-proxy (Traefik v3.6) y enruta por el Host
@@ -93,7 +112,14 @@ notes:
   - Las imagenes de productos se sirven en /media/ -> backend (Django).
     El nginx del frontend debe usar `location ^~ /media/` para que la
     location de assets estaticos no capture los .png. Ver deploy_production.md.
-  - No tocar Nginx salvo que /api/health/ no llegue correctamente al backend.
+  - No tocar Nginx salvo que /health/ no llegue correctamente al backend.
+  - /static/ lo sirve el backend con WhiteNoise (no nginx): Django bajo
+    gunicorn no sirve estáticos. El entrypoint corre `collectstatic` antes de
+    levantar gunicorn. Ver deploy_production.md sección 0.9.
+  - El cron de normalización de imágenes corre en el host fasa_189
+    (scripts/normalizar-imagenes-cron.sh). El importador del ERP corre en
+    192.168.0.150, donde no hay acceso SSH, por eso se automatiza con cron y
+    no con un hook. Ver deploy_production.md sección 0.11.
   - No crear código nuevo únicamente en producción.
   - Todo cambio debe quedar en Git.
   - El repo fuente de desarrollo está en D:\programacion\web\revendedores.
