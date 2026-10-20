@@ -13,7 +13,10 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 COPY backend/ .
+COPY staging/revendedores-entrypoint.sh /usr/local/bin/revendedores-entrypoint
+RUN chmod 0755 /usr/local/bin/revendedores-entrypoint
 
 EXPOSE 8000
 
+ENTRYPOINT ["/usr/local/bin/revendedores-entrypoint"]
 CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120"]
