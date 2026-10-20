@@ -390,12 +390,6 @@ base no.
 curl -s https://ventas.ferreteriaavenida.com.ar/health/
 ```
 
-> El workflow de n8n *"Monitor Servicios Producción - Nginx Apps"*
-> (id `eCd4Cm9oz28szmTc`) está **inactivo** y chequea la raíz del sitio, no un
-> health endpoint, y además apunta al server viejo `192.168.0.195` para varios
-> servicios. Conviene reactivarlo y apuntarlo a
-> `https://ventas.ferreteriaavenida.com.ar/health/`.
-
 
 ### 0.11 Automatizar la normalización de imágenes (cron)
 

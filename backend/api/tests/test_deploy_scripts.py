@@ -11,6 +11,7 @@ contengan lo que tienen que contener.
 
 from pathlib import Path
 
+import yaml
 from django.test import SimpleTestCase
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -18,6 +19,7 @@ ENTRYPOINT = REPO_ROOT / 'staging' / 'revendedores-entrypoint.sh'
 BACKEND_DOCKERFILE = REPO_ROOT / 'staging' / 'Dockerfile.revendedores.backend'
 BACKEND_DOCKERFILE_GIT = REPO_ROOT / 'docker' / 'Dockerfile.backend'
 CRON_SCRIPT = REPO_ROOT / 'scripts' / 'normalizar-imagenes-cron.sh'
+DEPLOY_YML = REPO_ROOT / 'deploy.yml'
 
 
 class StagingVersionadoTests(SimpleTestCase):
@@ -121,3 +123,34 @@ class PwaServiceWorkerConfigTests(SimpleTestCase):
             self.config.index('no-cache-backend'),
             self.config.index('url.origin === self.origin'),
         )
+
+
+class DeployYmlTests(SimpleTestCase):
+    """``deploy.yml`` tiene que ser YAML valido.
+
+    Nadie lo parseaba, asi que un ": " dentro de un item de lista multilinea
+    (que en YAML rompe el escalar plano) dejo el archivo entero invalido sin
+    que nadie se enterara: es un archivo de documentacion, no lo lee ningun
+    codigo en runtime.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.data = yaml.safe_load(DEPLOY_YML.read_text(encoding='utf-8'))
+
+    def test_es_yaml_valido(self):
+        self.assertIsInstance(self.data, dict)
+
+    def test_tiene_las_secciones_principales(self):
+        for seccion in ('production', 'application', 'health', 'deploy', 'commands'):
+            self.assertIn(seccion, self.data)
+
+    def test_el_health_url_es_el_publico(self):
+        self.assertEqual(
+            self.data['production']['health_url'],
+            'https://ventas.ferreteriaavenida.com.ar/health/',
+        )
+
+    def test_el_health_url_no_esta_marcado_como_privado(self):
+        self.assertFalse(self.data['production']['health_url_not_public'])
