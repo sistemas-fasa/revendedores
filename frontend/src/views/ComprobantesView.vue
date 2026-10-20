@@ -357,8 +357,13 @@ const formatCurrency = (value) => {
 }
 
 // Función para formatear fecha
+// Los comprobantes sin fecha de vencimiento (el ERP los guarda como
+// '0000-00-00') llegan como null: se muestran con un guion.
 const formatDate = (dateStr) => {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-AR', {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr + 'T00:00:00')
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleDateString('es-AR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'

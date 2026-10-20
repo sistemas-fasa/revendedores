@@ -35,3 +35,18 @@
 ## Integration points
 - Email templates are in backend/api/templates/emails/ and used in pedido confirmation.
 - Media files are served via /media/ (backend/backend/settings.py, backend/backend/urls.py).
+
+## Gotchas
+- Backend tests live in the package `backend/api/tests/` (one file per topic, `test_*.py`).
+  Do NOT create `backend/api/tests.py`: the package shadows the module of the same name and
+  any test written there never runs.
+- Fechas del ERP legacy: la base `fasa` (origen VFP) usa '0000-00-00' como centinela de
+  "sin fecha" en las columnas de vencimiento. pymysql devuelve ese valor como texto y el
+  backend MySQL de Django no lo convierte, así que `.strftime()` sobre el atributo revienta.
+  Las columnas de la cuenta corriente, facturas y cobranzas usan `FechaContableField`
+  (backend/api/fechas.py), que lo normaliza a `None`. Para fechas del ERP usá siempre
+  `formatear_fecha()` / `normalizar_fecha()` / `esta_vencido()` de ese módulo, y el lookup
+  `con_fecha_valida` para excluir esas filas de los agregados.
+- `cuenta_corriente_clientes`, `facturas` y `cobranzas` son `managed = False`: son vistas
+  sobre `fasa.movi`. Cambiar sus campos NO genera migraciones ni altera la base.
+

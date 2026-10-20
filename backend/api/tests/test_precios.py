@@ -6,9 +6,9 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from .models import Articulos, BonificacionCliente, Cliente, Favorito, FormaPago, Localidades
-from .services.precios import calcular_precio_articulo
-from .views import consultar_precio, exportar_favoritos
+from api.models import Articulos, BonificacionCliente, Cliente, Favorito, FormaPago, Localidades
+from api.services.precios import calcular_precio_articulo
+from api.views import consultar_precio, exportar_favoritos
 
 
 class PrecioServiceTests(TestCase):

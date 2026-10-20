@@ -2,6 +2,9 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
+
+from .fechas import FechaContableField
+
 # Create your models here.
     
 LISTA_CLIENTE = [
@@ -372,8 +375,8 @@ class CuentaCorrienteCliente(models.Model):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     saldo = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     fecha = models.DateField()
-    fechaven = models.DateField(db_column='FECHAVEN')
-    fecha1venc = models.DateField(db_column='FECHA1VENC')
+    fechaven = FechaContableField(db_column='FECHAVEN')
+    fecha1venc = FechaContableField(db_column='FECHA1VENC')
     pago = models.CharField(max_length=2, default='00')
     forma_pago = models.CharField(max_length=40)
     codigo = models.CharField(max_length=1)
@@ -419,8 +422,8 @@ class Factura(models.Model):
     unidad = models.CharField(max_length=8)
     pago = models.CharField(max_length=2, default='00')
     cuotapago = models.IntegerField(default=1)
-    fechaven = models.DateField()
-    fecha1venc = models.DateField()
+    fechaven = FechaContableField()
+    fecha1venc = FechaContableField()
     fletetransp = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
     boni = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
     costo = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
@@ -467,7 +470,7 @@ class Cobranzas(models.Model):
     detalle = models.CharField(max_length=40, null=True, blank=True)
     banco = models.CharField(max_length=20, null=True, blank=True)
     numero = models.CharField(max_length=12, null=True, blank=True)
-    vence = models.DateField(null=True, blank=True, default=None)
+    vence = FechaContableField(null=True, blank=True, default=None)
     impentra = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0.00)
     comp = models.CharField(max_length=12, null=True, blank=True)
 

@@ -318,6 +318,7 @@ const formatNumber = (value) => {
 const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString + 'T00:00:00')
+  if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleDateString('es-AR')
 }
 
