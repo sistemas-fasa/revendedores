@@ -269,6 +269,34 @@ class ComprobantesFechaCeroTests(TransactionTestCase):
         self.assertEqual(comprobante["fecha"], "2026-10-14")
         self.assertEqual(comprobante["estado"], "Vigente")
 
+    def test_pagina_no_numerica_no_rompe_la_api(self):
+        """El botón 'Actualizar' mandaba el evento del click como page.
+
+        Llegaba `page=[object PointerEvent]` y `int()` tiraba la request con
+        HTTP 500. Ahora se ignora y se usa la primera página.
+        """
+        self._crear_comprobante()
+
+        with patch("api.models.CuentaCorrienteCliente", CuentaCorrienteStub):
+            response = comprobantes_cliente(
+                self._request("/api/comprobantes/", page="[object PointerEvent]")
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["pagination"]["current_page"], 1)
+        self.assertEqual(len(response.data["data"]), 1)
+
+    def test_page_size_se_acota_a_un_maximo(self):
+        self._crear_comprobante()
+
+        with patch("api.models.CuentaCorrienteCliente", CuentaCorrienteStub):
+            response = comprobantes_cliente(
+                self._request("/api/comprobantes/", page_size="999999")
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["pagination"]["page_size"], 100)
+
     def test_lista_conserva_las_fechas_validas(self):
         self._crear_comprobante(
             numero="002000019151",
