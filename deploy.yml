@@ -103,7 +103,7 @@ commands:
     docker exec <backend-container> revendedores-entrypoint python
     manage.py normalizar_imagenes
   cron_normalizar_imagenes: >-
-    */30 * * * *
+    */30 * * * * sh
     /srv/fasa-data/compose/revendedores-src/scripts/normalizar-imagenes-cron.sh
 
 notes:

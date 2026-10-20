@@ -88,6 +88,7 @@ rsync -a --exclude '__pycache__' $BUILD/frontend/src/ $SRC/frontend/src/
 rsync -a $BUILD/docker/nginx/ $SRC/docker/nginx/
 rsync -a $BUILD/staging/ $SRC/staging/
 rsync -a $BUILD/scripts/ $SRC/scripts/
+chmod +x $SRC/scripts/*.sh
 cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html} $SRC/frontend/
 ```
 
@@ -104,7 +105,10 @@ cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html}
 > quedó en el server.
 >
 > El `rsync` de `scripts/` es lo que deja el script de cron en el path que
-> usa el crontab (ver 0.11).
+> usa el crontab (ver 0.11). El `chmod +x` es necesario porque el checkout en
+> Windows no preserva el bit de ejecución: en git los dos `.sh` están
+> marcados como `100755`, pero el `rsync` desde el clone de Linux ya llega con
+> el permiso, y el `chmod` queda como red de seguridad.
 >
 > `chmod -R u+w` incluye `$SRC/docker` porque en el server ese árbol es
 > read-only (`dr-xr-sr-x`) y `rsync` necesita permiso de escritura en el
@@ -393,12 +397,15 @@ sincroniza al server con el `rsync` del paso 2 de 0.3). Instalar en el host
 SRC=/srv/fasa-data/compose/revendedores-src
 
 crontab -l 2>/dev/null | grep -v 'normalizar-imagenes-cron.sh' > /tmp/cron.txt || true
-echo "*/30 * * * * $SRC/scripts/normalizar-imagenes-cron.sh" >> /tmp/cron.txt
+echo "*/30 * * * * sh $SRC/scripts/normalizar-imagenes-cron.sh" >> /tmp/cron.txt
 crontab /tmp/cron.txt
 
 # Verificar
 crontab -l
 ```
+
+> El crontab invoca el script con `sh` explícito: así no depende del bit de
+> ejecución del archivo en el disco.
 
 Log: `/srv/fasa-data/data/revendedores/logs/normalizar-imagenes.log`.
 
