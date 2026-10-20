@@ -336,6 +336,22 @@ curl -s https://ventas.ferreteriaavenida.com.ar/admin/login/ | grep -o 'href="[^
 > bloqueante, pero es la razón de que el admin se vea distinto si se compara
 > con el server. Si alguna vez se versiona, ese warning desaparece.
 
+> **Gotcha (service worker):** la PWA de revendedores tiene un service worker
+> que sirve el `index.html` de la SPA en **toda navegación**
+> (`NavigationRoute` con `createHandlerBoundToURL("index.html")`). Con eso,
+> abrir `/admin/` en el navegador devolvía la SPA en vez del admin de Django,
+> aunque el CSS ya sirviera. Por eso `frontend/vite.config.ts` tiene:
+>
+> - `navigateFallbackDenylist: [/^\/admin\//, /^\/health\//]` → esas rutas no
+>   usan el fallback y van a la red
+> - una regla `NetworkOnly` (`no-cache-backend`) para `/admin/` y `/health/`,
+>   **antes** de la regla same-origin `NetworkFirst` (en Workbox gana la
+>   primera que matchea, y la same-origin matchea todo)
+>
+> Con eso el admin abre con estilos y el health check nunca se sirve de un
+> caché viejo. Si se cambia la config del PWA, hay que **rebuildear y
+> redeployar el frontend**: el service worker se regenera en el build.
+
 
 ### 0.10 `/health/`: el health check público
 

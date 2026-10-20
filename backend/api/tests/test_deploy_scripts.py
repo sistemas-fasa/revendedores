@@ -89,3 +89,35 @@ class CronNormalizarImagenesTests(SimpleTestCase):
         contenido = CRON_SCRIPT.read_text(encoding='utf-8')
 
         self.assertIn('normalizar-imagenes.log', contenido)
+
+
+class PwaServiceWorkerConfigTests(SimpleTestCase):
+    """El service worker de la PWA sirve el index.html de la SPA en TODA navegacion.
+
+    Eso tapaba el admin de Django: al abrir /admin/ el SW contestaba con la
+    SPA en vez de dejar que la request fuera al backend. Y de paso podia
+    servir un health check viejo desde el cache.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.config = (REPO_ROOT / 'frontend' / 'vite.config.ts').read_text(encoding='utf-8')
+
+    def test_el_denylist_excluye_admin_y_health(self):
+        """Sin denylist, la navegacion a /admin/ y /health/ devuelve la SPA."""
+        self.assertIn('navigateFallbackDenylist', self.config)
+        self.assertIn(r'/^\/admin\//', self.config)
+        self.assertIn(r'/^\/health\//', self.config)
+
+    def test_admin_y_health_van_siempre_a_la_red(self):
+        self.assertIn('no-cache-backend', self.config)
+        self.assertIn("url.pathname === '/health/'", self.config)
+
+    def test_la_regla_de_admin_y_health_va_antes_de_la_same_origin(self):
+        """En Workbox gana la primera ruta que matchea, y la same-origin
+        (NetworkFirst) matchea TODO lo del mismo origen."""
+        self.assertLess(
+            self.config.index('no-cache-backend'),
+            self.config.index('url.origin === self.origin'),
+        )
