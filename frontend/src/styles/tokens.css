@@ -20,13 +20,22 @@
   --space-lg: 24px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0b1220;
-    --color-surface: #0f1724;
-    --color-text: #e6eef8;
-  }
-}
+/*
+  Tema: la app es de tema CLARO, en todos los casos.
+
+  Antes había un bloque `@media (prefers-color-scheme: dark)` que cambiaba
+  `--color-bg`, `--color-surface` y `--color-text`. Venía del commit inicial
+  como andamiaje y nunca se completó: la app usa clases de Tailwind fijas
+  (text-gray-950, text-gray-700, ...) en 30 componentes, así que con el sistema
+  del operativo en oscuro los paneles quedaban oscuros y los textos seguian
+  en color oscuro (ilegibles). Peor: las mismas clases se usan tambien sobre
+  fondos blancos, asi que ningun override global las salva.
+
+  Para soportar modo oscuro de verdad hay que reemplazar esas clases fijas por
+  tokens semanticos (--color-text, --color-text-muted, --color-surface-muted,
+  --color-border) y definir la paleta oscura completa. Es un trabajo aparte,
+  no un ajuste de este archivo.
+*/
 
 body {
   background: var(--color-bg);
