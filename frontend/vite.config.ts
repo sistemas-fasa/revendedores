@@ -37,11 +37,25 @@ export default defineConfig(({ mode }) => {
           clientsClaim: true,
           skipWaiting: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // El service worker sirve el index.html de la SPA en TODA navegacion
+          // (NavigationRoute). Eso tapaba el admin de Django (/admin/) y el
+          // health check (/health/): la navegacion devolvia la SPA en vez de ir
+          // al backend. Con el denylist, esas rutas van a la red.
+          navigateFallbackDenylist: [/^\/admin\//, /^\/health\//],
           runtimeCaching: [
             {
               urlPattern: ({ url }: any) => url.pathname.startsWith('/informes/'),
               handler: 'NetworkOnly',
               options: { cacheName: 'no-cache-informes' }
+            },
+            {
+              // El admin de Django y el health check van siempre a la red:
+              // el admin no tiene nada que ver con la SPA y el health check
+              // no puede servir un JSON viejo desde el cache.
+              urlPattern: ({ url }: any) =>
+                url.pathname.startsWith('/admin/') || url.pathname === '/health/',
+              handler: 'NetworkOnly',
+              options: { cacheName: 'no-cache-backend' }
             },
             {
               urlPattern: ({ url }: any) => url.origin === self.origin,
