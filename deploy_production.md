@@ -81,12 +81,24 @@ SRC=/srv/fasa-data/compose/revendedores-src
 tar czf /tmp/revendedores-src-backup-$(date +%Y%m%d-%H%M%S).tar.gz \
   -C /srv/fasa-data/compose revendedores-src/backend revendedores-src/frontend/src
 
-chmod -R u+w $SRC/backend $SRC/frontend/src
+chmod -R u+w $SRC/backend $SRC/frontend/src $SRC/docker
 rsync -a --exclude '__pycache__' --exclude '*.pyc' --exclude '.pytest_cache' \
   $BUILD/backend/ $SRC/backend/
 rsync -a --exclude '__pycache__' $BUILD/frontend/src/ $SRC/frontend/src/
+rsync -a $BUILD/docker/nginx/ $SRC/docker/nginx/
 cp -f $BUILD/frontend/{package.json,package-lock.json,vite.config.ts,index.html} $SRC/frontend/
 ```
+
+> ⚠️ El `rsync` de `docker/nginx/` **es obligatorio**: `docker/Dockerfile.frontend`
+> hace `COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf`, así que
+> la config de nginx queda horneada en la imagen. Sin este sync, los cambios en
+> `docker/nginx/default.conf` **nunca llegan a producción** (y el build usa
+> silenciosamente la conf vieja que quedó en el server).
+>
+> `chmod -R u+w` incluye `$SRC/docker` porque en el server ese árbol es
+> read-only (`dr-xr-sr-x`) y `rsync` necesita permiso de escritura en el
+> directorio para reemplazar el archivo.
+
 
 **3. Construir y pushear las imágenes:**
 
@@ -166,6 +178,51 @@ También hay backups del source en `/tmp/revendedores-src-backup-*.tar.gz`.
   `-H "Host: ventas.ferreteriaavenida.com.ar"`, si no responde 400.
 - **El service deploy completo** (`POST /services/{uuid}/start`) devuelve 400
   si el servicio ya está `running`. Para redeployar se va por aplicación.
+- **La API de Coolify 4.4.6 está rota para TODOS los tokens** (verificado
+  2026-10-20): `app/Models/PersonalAccessToken.php` define `casts()` como
+  **método**, y eso pisa la propiedad `$casts` de Sanctum
+  (`'abilities' => 'json'`). Entonces `abilities` queda como **string** y
+  `tokenCan()` revienta con
+  `in_array(): Argument #2 ($haystack) must be of type array, string given`
+  → la API responde **500** (no 401), así que el token parece válido pero no
+  funciona. No hay token en el panel que sirva: en `personal_access_tokens` el
+  campo `token` es un **hash sha256**, no el texto plano.
+  **Workaround sin API:** recrear el contenedor con el compose efectivo que
+  Coolify ya genera (tiene las labels de traefik adentro), ver 0.7.
+
+### 0.7 Redeploy sin la API de Coolify (compose efectivo)
+
+Coolify genera un compose final **con las labels de traefik ya inyectadas**.
+Ese archivo es el que hay que usar para recrear un contenedor a mano:
+
+```bash
+# 1. Copiar el compose efectivo + su .env a un directorio accesible
+docker exec coolify cat /var/www/html/storage/app/services/1ezipmojg3zemckxlug8ndjv/docker-compose.yml > /tmp/rev/docker-compose.yml
+docker exec coolify cat /var/www/html/storage/app/services/1ezipmojg3zemckxlug8ndjv/.env > /tmp/rev/.env
+
+# 2. Recrear SOLO el frontend con la imagen nueva del registry
+cd /tmp/rev && docker compose up -d --no-deps --force-recreate frontend
+```
+
+> **No usar** `docker compose` con `/srv/fasa-data/compose/revendedores-coolify.compose.yml`
+> (el que está en el repo): ese no tiene las labels de traefik, y recrear el
+> contenedor con él **deja el sitio sin ruta y sin HTTPS**.
+>
+> `docker compose up` recrea el contenedor con el **mismo nombre**
+> (`frontend-1ezipmojg3zemckxlug8ndjv`), así que Coolify sigue viéndolo
+> running y no se rompe el estado.
+>
+> Alternativa sin recrear nada, para cambios **solo de nginx**: copiar la conf
+> al contenedor y recargar, sin downtime ni recrear:
+>
+> ```bash
+> docker cp /tmp/rev/default.conf frontend-1ezipmojg3zemckxlug8ndjv:/etc/nginx/conf.d/default.conf
+> docker exec frontend-1ezipmojg3zemckxlug8ndjv nginx -s reload
+> ```
+>
+> Esto **no** es permanente: la próxima vez que se recree el contenedor vuelve
+> la conf vieja. Por eso hay que pushear la imagen igual.
+
 
 ---
 
