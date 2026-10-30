@@ -39,6 +39,7 @@ urlpatterns = [
     path('exportar-favoritos/', views.exportar_favoritos, name='exportar_favoritos'),
     path('dashboard/kpis/', views.dashboard_kpis, name='dashboard_kpis'),
     path('comprobantes/', views.comprobantes_cliente, name='comprobantes_cliente'),
+    path('comprobantes/<str:tipo>/<str:numero_comprobante>/pdf/', views.descargar_comprobante_pdf, name='descargar_comprobante_pdf'),
     path('comprobantes/<str:numero_comprobante>/', views.detalle_comprobante, name='detalle_comprobante'),
     path('sincronizar-carrito/', staff_views.sincronizar_carrito, name='sincronizar-carrito'),
     # JWT
