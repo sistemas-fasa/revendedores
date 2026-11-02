@@ -13,6 +13,7 @@ from ops.automatizaciones.price_sync_monitor import (
     check_sync_status,
     compare_price,
     compare_synced_article,
+    _aggregate_discrepancies,
     _cache_model_lookups,
     _load_runtime,
     mark_alert_notified,
@@ -203,6 +204,49 @@ def test_update_alert_state_sends_new_or_changed_issues_once_and_clears_resolved
     state, alerts = update_alert_state(state, [])
     assert alerts == []
     assert state["active"] == {}
+
+
+def test_grouped_price_alerts_deduplicate_cases_across_rotating_canaries():
+    first_case = {
+        "key": "00040|005.003|reparto",
+        "tipo": "customer_price_mismatch",
+        "cliente": "00040",
+        "articulo": "005.003",
+        "modalidad": "reparto",
+        "portal": "100.00",
+        "vfp": "101.00",
+    }
+    second_case = {
+        "key": "00041|006.003|reparto",
+        "tipo": "customer_price_mismatch",
+        "cliente": "00041",
+        "articulo": "006.003",
+        "modalidad": "reparto",
+        "portal": "200.00",
+        "vfp": "201.00",
+    }
+
+    state, alerts = update_alert_state({}, [_aggregate_discrepancies([first_case, second_case])[0]])
+    assert len(alerts) == 1
+    assert alerts[0]["cantidad"] == 2
+    for key in alerts[0]["_state_keys"]:
+        state = mark_alert_notified(state, key)
+
+    state, alerts = update_alert_state(
+        state, [_aggregate_discrepancies([first_case])[0]], preserve_missing=True
+    )
+
+    assert alerts == []
+    assert "case:" + second_case["key"] in state["active"]
+
+    changed_case = {**first_case, "vfp": "102.00"}
+    state, alerts = update_alert_state(
+        state, [_aggregate_discrepancies([changed_case])[0]], preserve_missing=True
+    )
+
+    assert len(alerts) == 1
+    assert alerts[0]["cantidad"] == 1
+    assert alerts[0]["muestras"] == [changed_case]
 
 
 class _ReferenceCalculator:

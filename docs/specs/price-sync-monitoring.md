@@ -13,6 +13,7 @@ Mantener la base de Revendedores actualizada con los datos vigentes del ERP y av
 - Un cron de actualización frecuente anterior se retiró por saturación del host; el diseño conserva el actualizador horario existente y evita lanzar un segundo barrido pesado frecuente.
 - El dry-run completo del 2026-11-02 leyó de vuelta los cuatro campos base para 11.804 artículos (47.216 campos) y comparó 704.960 precios finales en aproximadamente 3 minutos. Identificó 789 artículos de Revendedores sin fila correspondiente en `Stock`; los registra como condición incompleta y alerta agregada, no como precio correcto.
 - La referencia ERP hacía búsquedas ORM repetidas de forma de pago, localidad, Stock e IVA por caso. El monitor ahora cachea las lecturas por ID durante cada proceso. También normaliza a `Decimal` el flete `0.00` que `Reparto` devuelve como `float` cuando un artículo no tiene tipo de reparto; esto evita el `TypeError` antes de aplicar IVA.
+- Los mensajes se agrupan para WhatsApp, pero el estado deduplica por caso estable (artículo/campo o cliente/artículo/modalidad). Los canarios rotativos conservan casos no incluidos en esa tanda; el barrido completo es el que puede confirmar que un caso desapareció.
 
 ## Flujo propuesto
 
@@ -40,9 +41,9 @@ Mantener la base de Revendedores actualizada con los datos vigentes del ERP y av
 5. El barrido completo informa cantidades verificadas, diferencias, errores y estado de finalización, y puede reanudarse sin duplicar trabajo.
 6. La prueba en producción se habilita gradualmente después de una ejecución en modo observación y de verificar el consumo de recursos.
 
-## Pendiente para implementación
+## Estado de activación
 
-La implementación y las pruebas locales están hechas. El canario y el barrido completo en producción se ejecutaron en `dry-run`; no se enviaron WhatsApp reales. El canario verificó 44 campos y 30 casos y encontró 8 artículos sin Stock en su selección. El barrido completo verificó 47.216 campos y 704.960 casos, encontró 789 artículos sin Stock y finalizó en aproximadamente 3 minutos. No detectó otras diferencias de precio. Aún no se habilitaron las tareas programadas; hasta reconciliar los artículos ausentes, el control debe permanecer incompleto y alertar esa condición.
+La implementación y las pruebas locales están hechas. El canario y el barrido completo en producción se ejecutaron en `dry-run`; no se enviaron WhatsApp reales. El canario verificó 44 campos y 30 casos y encontró 8 artículos sin Stock en su selección. El barrido completo verificó 47.216 campos y 704.960 casos, encontró 789 artículos sin Stock y finalizó en aproximadamente 3 minutos. No detectó otras diferencias de precio. Las tareas programadas se habilitaron únicamente en `automatizaciones-scheduler`; el control permanecerá incompleto y avisará los artículos que falten hasta reconciliarlos.
 
 ## Detalles confirmados durante el relevamiento
 

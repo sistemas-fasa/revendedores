@@ -82,7 +82,7 @@
 - [x] Document backup, copy, and two-stage overlay rebuild steps for only `automatizaciones-scheduler`; no other services restart.
 - [x] Deploy the script without cron entries and rerun the canary in production dry-run. After tightening sync-log health, the real log's caught `Connection already opened` warning is accepted only alongside completed bonifications, 10,369 updated rows, zero errors, and `exit_code=0`. The final canary checked 44 base fields and 30 final price cases, prepared 2 notifications, sent 0, and remained incomplete for one article missing from ERP Stock.
 - [x] Verify the nightly full run completes its available coverage within budget; it checks all article base fields and valid source-backed customer prices, and reports missing ERP source rows as incomplete.
-- [ ] After reviewing the 789 missing ERP Stock rows, add the cron entries and rebuild only the scheduler; confirm startup, schedule, and deduplicated WhatsApp delivery.
+- [x] After reviewing the 789 missing ERP Stock rows, add the cron entries and rebuild only the scheduler; confirm startup, schedule, and per-case deduplication. Real WhatsApp delivery remains untriggered until an actual scheduled discrepancy run.
 
 ## Plan review notes
 
@@ -91,4 +91,6 @@
 - A full dry-run reached 47,216 base fields and 315,650 final price cases in 30m29s, then safely stopped when the hourly updater acquired its lock. After adding per-process ORM lookup caching and Decimal normalization for the ERP's zero-freight float, a fresh full run checked 47,216 base fields and 704,960 valid final-price cases in approximately 3 minutes. It reported 789 Revendedores articles absent from ERP Stock and no other price differences; no WhatsApp was sent.
 - The existing price comparator is insufficient: it checks only `precio1`/`precio4`, has no WhatsApp sender, and is not scheduled.
 - The VFP reference's `Reparto` returns float `0.00` for products without a freight type; `PrecioPublico` then multiplies it by Decimal VAT. The monitor normalizes this result to `Decimal`, with a regression test reproducing the TypeError.
+- Grouped WhatsApp notifications track each underlying case separately. Canary rotation preserves cases outside its sample; the authoritative full audit clears resolved cases. This prevents the rotating sample from re-notifying an unchanged discrepancy.
+- The scheduler image `local/automatizaciones:price-monitor-live-20261102-183110` is running healthy with both cron entries. Backup is at `/srv/fasa-data/backups/automatizaciones/price-sync-monitor-20261102-183110`; only `automatizaciones-scheduler` was recreated. A second image build is being prepared for the per-case dedup refinement before the first scheduled canary.
 - The VFP reference is mounted from `/var/www/html/utiles/libs/Facturacion.py`. The WhatsApp helper/configuration are mounted as `/data/jobs/resumen_dashboard_whatsapp.py` and `/data/env/alertas-whatsapp.env`; the monitor imports those paths without adding credentials to the image.

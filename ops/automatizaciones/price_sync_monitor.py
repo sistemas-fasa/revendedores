@@ -213,14 +213,55 @@ def _alert_signature(alert: dict[str, Any]) -> str:
 
 
 def update_alert_state(
-    previous: dict[str, Any], current: list[dict[str, Any]]
+    previous: dict[str, Any],
+    current: list[dict[str, Any]],
+    *,
+    preserve_missing: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Return active discrepancy state and newly observed/changed alerts."""
     previous_active = previous.get("active", {}) if isinstance(previous, dict) else {}
-    next_active: dict[str, dict[str, Any]] = {}
+    next_active: dict[str, dict[str, Any]] = dict(previous_active) if preserve_missing else {}
     to_send: list[dict[str, Any]] = []
 
     for alert in current:
+        if alert.get("tipo") == "price_mismatch" and isinstance(
+            alert.get("case_signatures"), dict
+        ):
+            changed_keys: list[str] = []
+            changed_kinds: list[str] = []
+            case_signatures = alert["case_signatures"]
+            for case_key, case_data in case_signatures.items():
+                state_key = f"case:{case_key}"
+                signature = str(case_data["signature"])
+                old = previous_active.get(state_key, {})
+                unchanged = old.get("signature") == signature
+                notified = bool(old.get("notified")) if unchanged else False
+                next_active[state_key] = {
+                    "signature": signature,
+                    "alert": {"key": case_key, "tipo": case_data["tipo"]},
+                    "notified": notified,
+                }
+                if not unchanged or not notified:
+                    changed_keys.append(case_key)
+                    changed_kinds.append(str(case_data["tipo"]))
+            if changed_keys:
+                to_send.append(
+                    {
+                        **alert,
+                        "cantidad": len(changed_keys),
+                        "bases": sum(kind == "base_price_mismatch" for kind in changed_kinds),
+                        "finales": sum(kind == "customer_price_mismatch" for kind in changed_kinds),
+                        "fuentes_faltantes": sum(kind == "source_article_missing" for kind in changed_kinds),
+                        "muestras": [
+                            case_signatures[key]["sample"]
+                            for key in changed_keys
+                            if case_signatures[key].get("sample")
+                        ][:5],
+                        "_state_keys": [f"case:{key}" for key in changed_keys],
+                    }
+                )
+            continue
+
         key = _alert_key(alert)
         signature = _alert_signature(alert)
         old = previous_active.get(key, {}) if isinstance(previous_active, dict) else {}
@@ -560,6 +601,14 @@ def _aggregate_discrepancies(discrepancies: list[dict[str, Any]]) -> list[dict[s
     digest = hashlib.sha256()
     for item in normalized:
         digest.update(_alert_signature(item).encode("ascii"))
+    case_signatures = {
+        _alert_key(item): {
+            "signature": _alert_signature(item),
+            "tipo": str(item.get("tipo", "")),
+            "sample": item,
+        }
+        for item in normalized
+    }
     return [
         {
             "key": "price_mismatch",
@@ -569,6 +618,7 @@ def _aggregate_discrepancies(discrepancies: list[dict[str, Any]]) -> list[dict[s
             "finales": sum(item.get("tipo") == "customer_price_mismatch" for item in normalized),
             "fuentes_faltantes": sum(item.get("tipo") == "source_article_missing" for item in normalized),
             "fingerprint": digest.hexdigest(),
+            "case_signatures": case_signatures,
             "muestras": normalized[:5],
         }
     ]
@@ -913,7 +963,7 @@ def run_monitor(
                 status = "incomplete"
             current_alerts.append(
                 {
-                    "key": f"audit_incomplete:{mode}",
+                    "key": "audit_incomplete",
                     "tipo": "audit_incomplete",
                     "motivo": str(scan.get("reason") or "unknown"),
                 }
@@ -928,7 +978,9 @@ def run_monitor(
             {"key": "database_error", "tipo": "database_error", "motivo": "database_read_failed"}
         )
 
-    next_state, to_send = update_alert_state(state, current_alerts)
+    next_state, to_send = update_alert_state(
+        state, current_alerts, preserve_missing=(mode == "canary")
+    )
     _write_state(state_path, next_state)
     notification_failures = 0
     notified = 0
@@ -937,7 +989,8 @@ def run_monitor(
         if _deliver_alert(alert, runtime, dry_run):
             notified += 1
             if not dry_run:
-                next_state = mark_alert_notified(next_state, key)
+                for state_key in alert.get("_state_keys", [key]):
+                    next_state = mark_alert_notified(next_state, state_key)
                 _write_state(state_path, next_state)
         else:
             notification_failures += 1
