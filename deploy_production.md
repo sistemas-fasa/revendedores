@@ -551,6 +551,8 @@ AUTOMATIZACIONES_IMAGE_TAG=price-monitor-live-$STAMP \
    --force-recreate automatizaciones-scheduler` con
    `AUTOMATIZACIONES_IMAGE_TAG=rollback-price-monitor-$STAMP`.
 
+**Despliegue ejecutado el 2026-11-02:** `local/automatizaciones:price-monitor-live-20261102-183904` quedó `running/healthy`; se confirmaron ambos cron y los directorios persistentes de logs/lock. El canario posterior verificó 44 campos y 30 casos en `dry-run`, con 8 artículos sin fila en Stock; no envió mensajes reales. El barrido completo de observación verificó 47.216 campos y 704.960 precios válidos, encontró 789 artículos sin fila en Stock y tardó cerca de 3 minutos. El backup de source/cron está en `/srv/fasa-data/backups/automatizaciones/price-sync-monitor-20261102-183904`; la imagen anterior quedó etiquetada `local/automatizaciones:rollback-price-monitor-20261102-183904`. Solo se recreó `automatizaciones-scheduler`. La primera entrega real de WhatsApp depende de la próxima ejecución cron.
+
 
 ---
 
