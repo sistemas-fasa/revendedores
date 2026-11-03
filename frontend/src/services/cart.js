@@ -155,7 +155,7 @@ export const cart = reactive({
         const owner = cartStorageKey();
         if (!owner) return { success: false, message: 'Iniciá sesión para enviar el pedido.', pedido: null };
         this.checkoutInProgress = true;
-        const submittedItems = JSON.stringify(this.items);
+        const submittedItems = this.items.map(item => ({ item, cantidad: Number(item.cantidad) }));
         try {
             if (onProgress) onProgress('Enviando pedido...');
             const modalidad = overrides.modalidad || localStorage.getItem('articulos_modalidad') || 'retira';
@@ -187,8 +187,16 @@ export const cart = reactive({
             });
             const pedido = response.data;
             localStorage.removeItem(pendingKey);
-            if (owner === cartStorageKey() && submittedItems === JSON.stringify(this.items)) {
-                this.items = [];
+            if (owner === cartStorageKey()) {
+                this.items = this.items.flatMap(item => {
+                    const sent = submittedItems.find(entry => entry.item === item);
+                    if (!sent) return [item];
+                    const remaining = Math.max(0, Number((Number(item.cantidad) - sent.cantidad).toFixed(3)));
+                    if (!remaining) return [];
+                    item.cantidad = remaining;
+                    item.subtotal = remaining * item.precio_unitario;
+                    return [item];
+                });
                 saveCartToStorage(this.items);
             }
             this.checkoutIdempotencyKey = null;

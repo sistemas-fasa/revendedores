@@ -102,6 +102,7 @@ test('el envío no elimina productos agregados mientras se procesa el pedido', a
   finish()
   assert.equal((await pending).success, true)
   assert.equal(cart.items.some(item => item.articulo.clave === 'B'), true)
+  assert.equal(cart.items.some(item => item.articulo.clave === 'A'), false)
 })
 
 test('sincroniza cambios del carrito en orden y conserva la última versión', async () => {
