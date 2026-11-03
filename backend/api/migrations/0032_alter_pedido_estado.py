@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0030_pedido_email_delivery_state'),
+        ('api', '0031_cliente_puede_descargar_lista'),
     ]
 
     operations = [

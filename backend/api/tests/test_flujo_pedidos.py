@@ -49,3 +49,8 @@ class FlujoPedidosTests(TestCase):
         response = self.client.post('/api/pedidos/checkout/', self.payload, format='json', HTTP_IDEMPOTENCY_KEY='otra-empresa')
         self.assertEqual(response.status_code, 400)
         self.assertFalse(Pedido.objects.exists())
+
+    def test_consulta_detalle_con_clave_que_contiene_punto(self):
+        response = self.client.get('/api/articulos/889.001/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['clave'], '889.001')

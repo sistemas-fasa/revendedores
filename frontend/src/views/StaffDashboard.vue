@@ -2832,7 +2832,7 @@ export default {
 
     getTotalCantidadPedido(items) {
       if (!items || !Array.isArray(items)) return 0;
-      return items.reduce((total, item) => total + (item.cantidad || 0), 0);
+      return items.reduce((total, item) => total + (Number(item.cantidad) || 0), 0);
     },
 
     getArticuloNombrePedido(item) {

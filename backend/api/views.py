@@ -583,6 +583,7 @@ def track_short_redirect(request, code):
     return redirect(f"{track_path}?t={encoded_token}")
 
 class ArticuloViewSet(BaseAppModelViewSet):
+    lookup_value_regex = '[^/]+'
     # Limitar queryset base a la empresa configurada en .env
     queryset = Articulos.objects.filter(empresa_id=settings.EMPRESA_ID)
     serializer_class = ArticuloSerializer

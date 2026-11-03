@@ -423,7 +423,7 @@ const cerrarModal = () => {
 
 const getTotalCantidad = (items) => {
   if (!items) return 0;
-  return items.reduce((total, item) => total + item.cantidad, 0);
+  return items.reduce((total, item) => total + (Number(item.cantidad) || 0), 0);
 };
 
 const reordenar = async (pedido) => {
