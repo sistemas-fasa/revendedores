@@ -75,3 +75,51 @@ test('un reintento del mismo pedido conserva la clave luego de recargar el carri
   const attempts = calls.filter(c => c.url.includes('checkout'))
   assert.equal(attempts[0].options.headers['Idempotency-Key'], attempts[1].options.headers['Idempotency-Key'])
 })
+
+test('al cambiar el usuario en otra pestaña no guarda el carrito previo en la cuenta nueva', async () => {
+  const { cart, localStorage, listeners } = await makeCart()
+  localStorage.setItem('user', JSON.stringify({ id: 1 }))
+  listeners['user-logged-in']()
+  cart.add({ clave: 'A', precio_lista: 10 }, 1)
+  localStorage.setItem('user', JSON.stringify({ id: 2 }))
+  try { cart.add({ clave: 'B', precio_lista: 20 }, 1) } catch {}
+  const stored = JSON.parse(localStorage.getItem('shopping_cart_user_2') || '{"items":[]}')
+  assert.equal(stored.items.some(item => item.articulo.clave === 'A'), false)
+})
+
+test('el envío no elimina productos agregados mientras se procesa el pedido', async () => {
+  const { cart, localStorage, listeners, api } = await makeCart()
+  localStorage.setItem('user', JSON.stringify({ id: 1 }))
+  listeners['user-logged-in']()
+  cart.add({ clave: 'A', precio_lista: 10 }, 1)
+  let finish
+  const originalPost = api.post
+  api.post = (...args) => args[0].includes('checkout')
+    ? new Promise(resolve => { finish = () => resolve({ data: { id: 1 } }) })
+    : originalPost(...args)
+  const pending = cart.checkout()
+  cart.add({ clave: 'B', precio_lista: 20 }, 1)
+  finish()
+  assert.equal((await pending).success, true)
+  assert.equal(cart.items.some(item => item.articulo.clave === 'B'), true)
+})
+
+test('sincroniza cambios del carrito en orden y conserva la última versión', async () => {
+  const { cart, localStorage, listeners, api } = await makeCart()
+  localStorage.setItem('user', JSON.stringify({ id: 1 }))
+  listeners['user-logged-in']()
+  const syncs = []
+  api.post = (url, data) => url.includes('sincronizar-carrito')
+    ? new Promise(resolve => syncs.push({ data, finish: () => resolve({ data: {} }) }))
+    : Promise.resolve({ data: {} })
+  cart.add({ clave: 'A', precio_lista: 10 }, 1)
+  cart.add({ clave: 'B', precio_lista: 20 }, 1)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(syncs.length, 1)
+  assert.equal(syncs[0].data.items.length, 1)
+  syncs[0].finish()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(syncs.length, 2)
+  assert.equal(syncs[1].data.items.length, 2)
+  syncs[1].finish()
+})

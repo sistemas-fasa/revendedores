@@ -7,6 +7,13 @@ const cartStorageKey = () => {
         return user?.id != null ? `shopping_cart_user_${user.id}` : null;
     } catch { return null; }
 };
+let activeOwner = cartStorageKey();
+let syncQueue = Promise.resolve();
+const requireCurrentOwner = () => {
+    if (!activeOwner || activeOwner !== cartStorageKey()) {
+        throw new Error('La sesión cambió en otra pestaña. Actualizá la página.');
+    }
+};
 
 // Función para cargar el carrito desde localStorage
 const loadCartFromStorage = () => {
@@ -33,7 +40,10 @@ const saveCartToStorage = (items) => {
         console.log('💾 Carrito guardado en localStorage:', items.length, 'items');
         
         // Sincronizar con el backend
-        sincronizarConBackend(items);
+        const snapshot = JSON.parse(JSON.stringify(items));
+        syncQueue = syncQueue.then(() => {
+            if (activeOwner === key && cartStorageKey() === key) return sincronizarConBackend(snapshot);
+        });
     } catch (error) {
         console.error('❌ Error al guardar carrito en localStorage:', error);
     }
@@ -65,6 +75,7 @@ export const cart = reactive({
     },
 
     add(articulo, cantidad = 1) {
+        requireCurrentOwner();
         const existingItem = this.items.find(item => item.articulo.clave === articulo.clave);
         if (existingItem) {
             existingItem.cantidad += cantidad;
@@ -82,11 +93,13 @@ export const cart = reactive({
     },
 
     remove(articulo_clave) {
+        requireCurrentOwner();
         this.items = this.items.filter(item => item.articulo.clave !== articulo_clave);
         saveCartToStorage(this.items); // Guardar después de eliminar
     },
 
     updateQuantity(articulo_clave, cantidad) {
+        requireCurrentOwner();
         const item = this.items.find(item => item.articulo.clave === articulo_clave);
         if (item) {
             item.cantidad = cantidad;
@@ -96,16 +109,19 @@ export const cart = reactive({
     },
 
     clear() {
+        requireCurrentOwner();
         this.items = [];
         saveCartToStorage(this.items); // Guardar después de limpiar
     },
 
     reloadForUser() {
+        activeOwner = cartStorageKey();
         this.items = loadCartFromStorage();
         this.checkoutIdempotencyKey = null;
     },
 
     async refreshPrices({ modalidad, con_impuestos, condicion_pago }) {
+        requireCurrentOwner();
         const owner = cartStorageKey();
         const items = this.items.slice();
         const prices = await Promise.all(items.map(async (item) => {
@@ -133,11 +149,13 @@ export const cart = reactive({
     checkoutIdempotencyKey: null,
 
     async checkout(onProgress = null, overrides = {}) {
+        requireCurrentOwner();
         if (this.items.length === 0) throw new Error('El carrito está vacío');
         if (this.checkoutInProgress) return { success: false, message: 'El pedido ya se está enviando. Esperá un momento.', pedido: null };
         const owner = cartStorageKey();
         if (!owner) return { success: false, message: 'Iniciá sesión para enviar el pedido.', pedido: null };
         this.checkoutInProgress = true;
+        const submittedItems = JSON.stringify(this.items);
         try {
             if (onProgress) onProgress('Enviando pedido...');
             const modalidad = overrides.modalidad || localStorage.getItem('articulos_modalidad') || 'retira';
@@ -169,7 +187,7 @@ export const cart = reactive({
             });
             const pedido = response.data;
             localStorage.removeItem(pendingKey);
-            if (owner === cartStorageKey()) {
+            if (owner === cartStorageKey() && submittedItems === JSON.stringify(this.items)) {
                 this.items = [];
                 saveCartToStorage(this.items);
             }
@@ -192,3 +210,6 @@ export const cart = reactive({
 
 window.addEventListener('user-logged-in', () => cart.reloadForUser());
 window.addEventListener('user-logged-out', () => cart.reloadForUser());
+window.addEventListener('storage', event => {
+    if (event.key === 'user' && activeOwner !== cartStorageKey()) window.location.reload();
+});

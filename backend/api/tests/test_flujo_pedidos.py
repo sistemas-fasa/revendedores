@@ -54,3 +54,11 @@ class FlujoPedidosTests(TestCase):
         response = self.client.get('/api/articulos/889.001/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['clave'], '889.001')
+
+    @patch('api.services.notificaciones_pedido.enviar_notificaciones_pedido', return_value={})
+    def test_rechaza_condicion_de_otra_lista(self, _notificar):
+        FormaPago.objects.create(id='04', nombre='Otra lista', lista='4', descuento=50, punitorio=0)
+        self.payload['condicion_pago'] = '04'
+        response = self.client.post('/api/pedidos/checkout/', self.payload, format='json', HTTP_IDEMPOTENCY_KEY='otra-lista')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Pedido.objects.exists())

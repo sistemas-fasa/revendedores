@@ -77,6 +77,8 @@ class PedidoSerializer(serializers.ModelSerializer):
             ) from exc
 
         condicion_pago = validated_data.get('condicion_pago') or cliente.condicion_pago
+        if condicion_pago and condicion_pago.lista not in (None, '', cliente.lista_precio):
+            raise serializers.ValidationError({'condicion_pago': 'La condición no corresponde a la lista del cliente.'})
         validated_data['condicion_pago'] = condicion_pago
         validated_data['cliente_snapshot'] = {
             'numero_cliente': cliente.numero_cliente,
