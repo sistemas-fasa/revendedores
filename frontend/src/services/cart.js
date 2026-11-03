@@ -1,10 +1,18 @@
-import { reactive, computed, watch } from 'vue';
+import { reactive } from 'vue';
 import api from './api';
+
+const cartStorageKey = () => {
+    try {
+        const user = JSON.parse(localStorage.getItem('user') || 'null');
+        return user?.id != null ? `shopping_cart_user_${user.id}` : null;
+    } catch { return null; }
+};
 
 // Función para cargar el carrito desde localStorage
 const loadCartFromStorage = () => {
     try {
-        const stored = localStorage.getItem('shopping_cart');
+        const key = cartStorageKey();
+        const stored = key && localStorage.getItem(key);
         if (stored) {
             const parsed = JSON.parse(stored);
             console.log('📦 Carrito cargado desde localStorage:', parsed);
@@ -19,7 +27,9 @@ const loadCartFromStorage = () => {
 // Función para guardar el carrito en localStorage
 const saveCartToStorage = (items) => {
     try {
-        localStorage.setItem('shopping_cart', JSON.stringify({ items }));
+        const key = cartStorageKey();
+        if (!key) return;
+        localStorage.setItem(key, JSON.stringify({ items }));
         console.log('💾 Carrito guardado en localStorage:', items.length, 'items');
         
         // Sincronizar con el backend
@@ -90,16 +100,44 @@ export const cart = reactive({
         saveCartToStorage(this.items); // Guardar después de limpiar
     },
 
+    reloadForUser() {
+        this.items = loadCartFromStorage();
+        this.checkoutIdempotencyKey = null;
+    },
+
+    async refreshPrices({ modalidad, con_impuestos, condicion_pago }) {
+        const owner = cartStorageKey();
+        const items = this.items.slice();
+        const prices = await Promise.all(items.map(async (item) => {
+            const response = await api.post('/api/consultar-precio/', {
+                articulo_clave: item.articulo.clave, modalidad, con_impuestos,
+                ...(condicion_pago ? { condicion_pago } : {}),
+            });
+            const price = Number(response.data?.articulo?.precio_lista);
+            if (!response.data?.success || !Number.isFinite(price) || price <= 0) {
+                throw new Error(`No se pudo actualizar el precio de ${item.articulo.clave}.`);
+            }
+            return price;
+        }));
+        if (!owner || owner !== cartStorageKey() || items.length !== this.items.length || items.some((item, index) => item !== this.items[index])) {
+            throw new Error('El carrito cambió; volvé a actualizar los precios.');
+        }
+        items.forEach((item, index) => {
+            item.precio_unitario = prices[index];
+            item.subtotal = item.cantidad * prices[index];
+        });
+        saveCartToStorage(this.items);
+    },
+
     checkoutInProgress: false,
     checkoutIdempotencyKey: null,
 
     async checkout(onProgress = null, overrides = {}) {
         if (this.items.length === 0) throw new Error('El carrito está vacío');
         if (this.checkoutInProgress) return { success: false, message: 'El pedido ya se está enviando. Esperá un momento.', pedido: null };
+        const owner = cartStorageKey();
+        if (!owner) return { success: false, message: 'Iniciá sesión para enviar el pedido.', pedido: null };
         this.checkoutInProgress = true;
-        if (!this.checkoutIdempotencyKey) {
-            this.checkoutIdempotencyKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        }
         try {
             if (onProgress) onProgress('Enviando pedido...');
             const modalidad = overrides.modalidad || localStorage.getItem('articulos_modalidad') || 'retira';
@@ -117,12 +155,24 @@ export const cart = reactive({
                     precio_unitario: parseFloat(item.precio_unitario.toFixed(2)),
                 })),
             };
+            const pendingKey = `${owner}_checkout`;
+            const signature = JSON.stringify({ ...pedidoData, items: pedidoData.items.map(({ articulo, cantidad }) => ({ articulo, cantidad })) });
+            let pending;
+            try { pending = JSON.parse(localStorage.getItem(pendingKey) || 'null'); } catch { pending = null; }
+            if (!pending || pending.signature !== signature) {
+                pending = { signature, key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}` };
+                localStorage.setItem(pendingKey, JSON.stringify(pending));
+            }
+            this.checkoutIdempotencyKey = pending.key;
             const response = await api.post('/api/pedidos/checkout/', pedidoData, {
                 headers: { 'Idempotency-Key': this.checkoutIdempotencyKey },
             });
             const pedido = response.data;
-            this.items = [];
-            saveCartToStorage(this.items);
+            localStorage.removeItem(pendingKey);
+            if (owner === cartStorageKey()) {
+                this.items = [];
+                saveCartToStorage(this.items);
+            }
             this.checkoutIdempotencyKey = null;
             return {
                 success: true,
@@ -139,3 +189,6 @@ export const cart = reactive({
         }
     },
 });
+
+window.addEventListener('user-logged-in', () => cart.reloadForUser());
+window.addEventListener('user-logged-out', () => cart.reloadForUser());

@@ -145,7 +145,7 @@ class PedidoViewSet(viewsets.ModelViewSet):
                 pedido = serializer.save(
                     user=request.user,
                     idempotency_key=idempotency_key,
-                    estado='CONFIRMADO',
+                    estado='PENDIENTE',
                 )
         except IntegrityError:
             existing = Pedido.objects.filter(user=request.user, idempotency_key=idempotency_key).first()

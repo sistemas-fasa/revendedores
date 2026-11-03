@@ -168,11 +168,14 @@ class Busqueda(models.Model):
 
 class Pedido(models.Model):
     ESTADO_PEDIDO = [
-        ('PENDIENTE', 'Pendiente'),
+        ('PENDIENTE', 'Pendiente de revisión'),
         ('CONFIRMADO', 'Confirmado'),
-        ('EN_PROCESO', 'En Proceso'),
+        ('REVISADO', 'Revisado'),
+        ('CARGADO_ERP', 'Cargado en ERP'),
+        ('EN_PROCESO', 'En preparación'),
         ('PREPARADO', 'Preparado'),
         ('ENVIADO', 'Enviado'),
+        ('LISTO_RETIRO', 'Listo para retirar'),
         ('ENTREGADO', 'Entregado'),
         ('CANCELADO', 'Cancelado'),
     ]
