@@ -191,15 +191,15 @@
                   Ver Detalle
                 </button>
                 <button
-                  v-if="['F', 'C', 'D'].includes(comprobante.codigo)"
+                  v-if="['F', 'C', 'D', 'R'].includes(comprobante.codigo)"
                   @click="descargarFactura(comprobante)"
                   :disabled="descargando === comprobanteKey(comprobante)"
                   class="ml-3 text-red-600 hover:text-red-900 transition-colors disabled:opacity-50 disabled:cursor-wait"
                   :aria-busy="descargando === comprobanteKey(comprobante)"
-                  :title="comprobante.codigo === 'F' ? 'Descargar factura PDF' : 'Descargar comprobante PDF'"
+                  :title="comprobante.codigo === 'R' ? 'Descargar recibo PDF' : (comprobante.codigo === 'F' ? 'Descargar factura PDF' : 'Descargar comprobante PDF')"
                 >
                   <i class="fas fa-download mr-1" :class="{ 'animate-pulse': descargando === comprobanteKey(comprobante) }"></i>
-                  {{ descargando === comprobanteKey(comprobante) ? 'Descargando…' : (comprobante.codigo === 'F' ? 'Descargar factura' : 'Descargar comprobante') }}
+                  {{ descargando === comprobanteKey(comprobante) ? 'Descargando…' : (comprobante.codigo === 'R' ? 'Descargar recibo' : (comprobante.codigo === 'F' ? 'Descargar factura' : 'Descargar comprobante')) }}
                 </button>
                 <p
                   v-if="errorDescarga && errorDescargaKey === comprobanteKey(comprobante)"
@@ -437,7 +437,7 @@ const descargarFactura = async (comprobante) => {
     errorDescarga.value = status === 404
       ? 'No se encontró el comprobante solicitado.'
       : status === 422
-        ? 'El comprobante no puede generarse por datos fiscales incompletos o sin autorización.'
+        ? (comprobante.codigo === 'R' ? 'El recibo no coincide con las facturas aplicadas.' : 'El comprobante no puede generarse por datos fiscales incompletos o sin autorización.')
         : 'No se pudo descargar el comprobante. Intentá nuevamente más tarde.'
     if (window.Toast) window.Toast.show(errorDescarga.value, 'error', 7000)
   } finally {
