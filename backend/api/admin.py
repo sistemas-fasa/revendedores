@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import BonificacionCliente, Cliente, FormaPago, Localidades, Articulos, ExportEvent, LinkOpen
+from .models import BonificacionCliente, Cliente, FormaPago, Localidades, Articulos, ArticuloDestacado, ExportEvent, LinkOpen
 
 # Register your models here.
 
@@ -7,6 +7,12 @@ class ArticulosAdmin(admin.ModelAdmin):
     list_display = ('clave', 'nombre', 'unidad', 'precio1', 'precio4', 'stock')
     search_fields = ('nombre',) # Add search by name
     list_filter = ('grupo',)
+
+
+class ArticuloDestacadoAdmin(admin.ModelAdmin):
+    list_display = ('articulo', 'fecha_creacion', 'creado_por')
+    search_fields = ('articulo__clave', 'articulo__nombre')
+    raw_id_fields = ('articulo',)
 
 class LocalidadesAdmin(admin.ModelAdmin):
     list_display = ('codigo', 'nombre', 'distancia')
@@ -29,6 +35,7 @@ admin.site.register(Cliente, ClienteAdmin)
 admin.site.register(FormaPago)
 admin.site.register(Localidades, LocalidadesAdmin)
 admin.site.register(Articulos, ArticulosAdmin)
+admin.site.register(ArticuloDestacado, ArticuloDestacadoAdmin)
 admin.site.register(BonificacionCliente, BonificacionClienteAdmin)
 
 

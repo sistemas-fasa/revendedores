@@ -1180,6 +1180,7 @@ onMounted(() => {
           >
             <div v-if="art.discontinuado === 'S'" class="absolute top-3 right-3 bg-yellow-500 text-white text-xs font-semibold px-2 py-1 rounded">Discontinuado</div>
             <div v-if="art.oferta === 'S'" class="absolute top-3 left-3 bg-green-600 text-white text-xs font-semibold px-2 py-1 rounded">Oferta</div>
+            <div v-if="art.destacado_avenida" class="absolute bottom-3 left-3 bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded">Destacado Avenida</div>
             <!-- Imagen del artículo -->
             <div class="relative h-40 bg-gray-100 border-b">
               <img

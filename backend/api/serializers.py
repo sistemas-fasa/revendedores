@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework import serializers
 from django.db.models import Count
 
-from .models import Articulos, Cliente, FormaPago, Favorito, Busqueda, Pedido, PedidoItem, ExportEvent
+from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, Busqueda, Pedido, PedidoItem, ExportEvent
 from .constants import CLAVE_LEN_THRESHOLD
 from .services.cantidades import validar_cantidad_articulo
 from .services.precios import calcular_precio_articulo
@@ -141,6 +141,17 @@ class FavoritoSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'fecha_creacion')
 
 
+class ArticuloDestacadoSerializer(serializers.ModelSerializer):
+    clave = serializers.CharField(source='articulo.clave', read_only=True)
+    nombre = serializers.CharField(source='articulo.nombre', read_only=True)
+    creado_por_username = serializers.CharField(source='creado_por.username', read_only=True)
+
+    class Meta:
+        model = ArticuloDestacado
+        fields = ['id', 'articulo', 'clave', 'nombre', 'fecha_creacion', 'creado_por', 'creado_por_username']
+        read_only_fields = ('fecha_creacion', 'creado_por')
+
+
 class BaseSerializer(serializers.ModelSerializer):
     """
     Serializer base común para todos los modelos.
@@ -242,6 +253,7 @@ class ArticuloSerializer(BaseSerializer):
     precio_lista = serializers.SerializerMethodField()
     mostrar_precio = serializers.SerializerMethodField()
     imagen = serializers.SerializerMethodField()
+    destacado_avenida = serializers.SerializerMethodField()
 
     class Meta:
         model = Articulos
@@ -290,6 +302,12 @@ class ArticuloSerializer(BaseSerializer):
         
         return None
     
+    def get_destacado_avenida(self, obj):
+        # Usa la anotacion del queryset cuando existe para evitar N+1.
+        if hasattr(obj, 'es_destacado_avenida'):
+            return bool(obj.es_destacado_avenida)
+        return ArticuloDestacado.objects.filter(articulo=obj).exists()
+
     def get_mostrar_precio(self, obj):
         """
         Determina si se debe mostrar el precio basado en:

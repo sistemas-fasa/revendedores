@@ -37,6 +37,7 @@ const staffItems = computed(() => {
 
   return [
     { to: '/staff-dashboard', icon: 'fa-chart-line', label: 'Panel de Staff' },
+    { to: '/staff/destacados', icon: 'fa-star', label: 'Destacados Avenida' },
     { to: '/staff-carritos', icon: 'fa-shopping-cart', label: 'Carritos de Clientes' },
     { to: '/staff/tracking', icon: 'fa-bullseye', label: 'Tracking' },
     { to: '/bot-test', icon: 'fa-comments', label: 'Bot de Prueba' },

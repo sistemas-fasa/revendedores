@@ -151,7 +151,32 @@ class Favorito(models.Model):
         verbose_name_plural = 'Favoritos'
 
     def __str__(self):
-        return f'{self.user.username} - {self.articulo.nombre}'        
+        return f'{self.user.username} - {self.articulo.nombre}'
+
+
+class ArticuloDestacado(models.Model):
+    """Artículos que Ferretería Avenida quiere mostrar primero en la búsqueda.
+
+    Es una marca global (sí/no), independiente de los favoritos de cada cliente.
+    En el orden de búsqueda va antes que los favoritos del cliente.
+    """
+
+    articulo = models.OneToOneField(
+        Articulos, on_delete=models.CASCADE, related_name='destacado_avenida'
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='destacados_avenida',
+    )
+
+    class Meta:
+        verbose_name = 'Destacado Avenida'
+        verbose_name_plural = 'Destacados Avenida'
+        ordering = ['-fecha_creacion']
+
+    def __str__(self):
+        return f'Avenida - {self.articulo.clave} {self.articulo.nombre}'        
 
 class Busqueda(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='busquedas')

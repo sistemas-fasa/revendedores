@@ -86,6 +86,12 @@ const routes = [
     meta: { requiresAuth: true, requiresStaff: true }
   },
   {
+    path: '/staff/destacados',
+    name: 'staff-destacados',
+    component: () => import('@/views/StaffDestacadosView.vue'),
+    meta: { requiresAuth: true, requiresStaff: true }
+  },
+  {
     path: '/staff/tracking',
     name: 'staff-tracking',
     component: () => import('@/views/StaffTracking.vue'),

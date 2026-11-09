@@ -5,7 +5,7 @@ import re
 from django.db import models, transaction, IntegrityError, connections
 from django.db.utils import DatabaseError
 from django.contrib.auth import logout
-from django.db.models import Case, When, BooleanField
+from django.db.models import Case, When, BooleanField, Exists, OuterRef
 
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
@@ -24,11 +24,11 @@ from django.core import signing
 from django.urls import reverse
 from urllib.parse import quote
 from datetime import timedelta
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import filters
 
-from .models import Articulos, Cliente, FormaPago, Favorito, Busqueda, Pedido, RegistroSesion, BonificacionCliente, ConsultaPrecio, ArticuloVista, LinkOpen, ShortTrackingLink
-from .serializers import ArticuloSerializer, FormaPagoSerializer, FavoritoSerializer, BusquedaSerializer, PedidoSerializer
+from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, Busqueda, Pedido, RegistroSesion, BonificacionCliente, ConsultaPrecio, ArticuloVista, LinkOpen, ShortTrackingLink
+from .serializers import ArticuloSerializer, FormaPagoSerializer, FavoritoSerializer, ArticuloDestacadoSerializer, BusquedaSerializer, PedidoSerializer
 from .constants import TIPOS_COMPROBANTE
 from .fechas import esta_vencido, formatear_fecha
 from .services.precios import _precios_base_erp, calcular_precio_articulo
@@ -208,7 +208,33 @@ class FavoritoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        
+
+class ArticuloDestacadoViewSet(viewsets.ModelViewSet):
+    """ABM de destacados de Ferreteria Avenida (solo staff)."""
+
+    serializer_class = ArticuloDestacadoSerializer
+    permission_classes = [IsAdminUser]
+    lookup_field = 'articulo'
+    lookup_value_regex = r'[\w.]+'
+
+    def get_queryset(self):
+        return ArticuloDestacado.objects.select_related('articulo', 'creado_por').all()
+
+    def perform_create(self, serializer):
+        serializer.save(creado_por=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            destacado = self.get_queryset().get(articulo__clave=kwargs.get('articulo'))
+            destacado.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ArticuloDestacado.DoesNotExist:
+            return Response(
+                {"error": "Destacado no encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
 User = get_user_model()
 
 @api_view(['POST'])
@@ -600,17 +626,21 @@ class ArticuloViewSet(BaseAppModelViewSet):
         discontinuados_q = self.request.query_params.get('discontinuados')
         oferta_q = self.request.query_params.get('oferta')
 
+        destacados_subq = ArticuloDestacado.objects.filter(articulo__clave=OuterRef('clave'))
+
         if user.is_authenticated:
             # Obtener claves de artículos favoritos del usuario
             favoritos_claves = Favorito.objects.filter(user=user).values_list('articulo__clave', flat=True)
 
-            # Anotar el queryset para marcar favoritos
+            # Anotar el queryset para marcar favoritos y destacados de Avenida.
+            # Los destacados de Avenida van primero, luego los favoritos del cliente.
             queryset = Articulos.objects.filter(empresa_id=settings.EMPRESA_ID).annotate(
                 is_favorito=Case(
                     When(clave__in=favoritos_claves, then=True),
                     default=False,
                     output_field=BooleanField()
-                )
+                ),
+                es_destacado_avenida=Exists(destacados_subq),
             )
 
             # Si se pide solo discontinuados, aplicar filtro
@@ -635,11 +665,12 @@ class ArticuloViewSet(BaseAppModelViewSet):
                     # Si algo falla, no interrumpir; devolver queryset sin filtrar
                     pass
 
-            queryset = queryset.order_by('-is_favorito', 'clave')
+            queryset = queryset.order_by('-es_destacado_avenida', '-is_favorito', 'clave')
             return queryset
 
-        # Para usuarios no autenticados, usar el queryset por defecto y aplicar el filtro si corresponde
-        qs = super().get_queryset()
+        # Para usuarios no autenticados, usar el queryset por defecto y aplicar el filtro si corresponde.
+        # Los destacados de Avenida también van primero para anónimos.
+        qs = super().get_queryset().annotate(es_destacado_avenida=Exists(destacados_subq))
         if discontinuados_q and discontinuados_q.lower() in ['1', 'true', 's']:
             qs = qs.filter(discontinuado='S')
         # Si se solicita sólo ofertas, filtrar por campo de oferta y stock>0
@@ -656,7 +687,7 @@ class ArticuloViewSet(BaseAppModelViewSet):
                     qs = qs.filter(**{ofert_field: 'S'}).filter(stock__gt=0)
             except Exception:
                 pass
-        return qs
+        return qs.order_by('-es_destacado_avenida', 'clave')
 
     def list(self, request, *args, **kwargs):
         search_query = request.query_params.get('search', None)
