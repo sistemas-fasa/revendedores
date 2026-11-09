@@ -3116,8 +3116,9 @@ export default {
             <div class="space-y-4 text-left">
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium mb-1">Email:</label>
-                  <input id="email" type="email" value="${clienteDetalle.email}" class="w-full p-2 border rounded">
+                  <label class="block text-sm font-medium mb-1">Email: <span class="text-red-600">*</span></label>
+                  <input id="email" type="email" required value="${clienteDetalle.email}" class="w-full p-2 border rounded">
+                  <p class="text-xs text-gray-500 mt-1">Requerido: se usa para recuperar la contraseña.</p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium mb-1">Estado:</label>
@@ -3219,8 +3220,13 @@ export default {
           cancelButtonColor: '#6b7280',
           width: '700px',
           preConfirm: () => {
+            const email = document.getElementById('email').value.trim();
+            if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+              Swal.showValidationMessage('El email es requerido y debe ser válido: se usa para recuperar la contraseña.');
+              return false;
+            }
             return {
-              email: document.getElementById('email').value,
+              email: email,
               is_active: document.getElementById('is_active').value === 'true',
               puede_descargar_lista: document.getElementById('puede_descargar_lista').checked,
               first_name: document.getElementById('first_name').value,

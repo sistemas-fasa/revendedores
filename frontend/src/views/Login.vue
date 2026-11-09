@@ -40,6 +40,34 @@
             <svg v-if="!loading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6l6 6-6 6" /></svg>
             <span v-else class="spinner" aria-hidden="true"></span>
           </button>
+
+          <div class="recovery-toggle">
+            <button type="button" class="link-button" @click="showRecovery = !showRecovery">
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
+          <div v-if="showRecovery" class="recovery-panel">
+            <p>Ingresá tu usuario y te enviamos un link a tu email registrado para crear una nueva.</p>
+            <div class="recovery-row">
+              <input
+                v-model="recoveryId"
+                type="text"
+                placeholder="Tu usuario o email"
+                aria-label="Usuario o email para recuperar contraseña"
+              />
+              <button
+                type="button"
+                class="secondary-button"
+                @click="handleRecovery"
+                :disabled="recoveryLoading"
+              >
+                {{ recoveryLoading ? 'Enviando...' : 'Enviar link' }}
+              </button>
+            </div>
+            <div v-if="recoveryMsg" class="success-message" role="status">{{ recoveryMsg }}</div>
+            <div v-if="recoveryError" class="error-message" role="alert">{{ recoveryError }}</div>
+          </div>
         </form>
         <p class="form-footer">Ferretería Avenida <span>·</span> Portal de ventas</p>
       </div>
@@ -50,6 +78,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import api from '../services/api'
 
 const username = ref('')
 const password = ref('')
@@ -57,6 +86,12 @@ const error = ref('')
 const loading = ref(false)
 const showPassword = ref(false)
 const authStore = useAuthStore()
+
+const showRecovery = ref(false)
+const recoveryId = ref('')
+const recoveryMsg = ref('')
+const recoveryError = ref('')
+const recoveryLoading = ref(false)
 
 const handleSubmit = async () => {
   error.value = ''
@@ -71,6 +106,26 @@ const handleSubmit = async () => {
     }
   } finally {
     loading.value = false
+  }
+}
+
+const handleRecovery = async () => {
+  recoveryMsg.value = ''
+  recoveryError.value = ''
+  if (!recoveryId.value.trim()) {
+    recoveryError.value = 'Ingresá tu usuario o email.'
+    return
+  }
+  recoveryLoading.value = true
+  try {
+    const { data } = await api.post('/api/password-reset/', {
+      identificador: recoveryId.value.trim(),
+    })
+    recoveryMsg.value = data.message
+  } catch (err) {
+    recoveryError.value = err.response?.data?.error || 'No se pudo enviar el email. Intentá más tarde.'
+  } finally {
+    recoveryLoading.value = false
   }
 }
 </script>
@@ -115,6 +170,21 @@ form { margin-top: 44px; }
 .submit-button:disabled { opacity: .7; cursor: wait; }
 .spinner { width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
 .error-message { margin-top: 4px; padding: 13px 15px; border: 1px solid #f1c3c9; border-radius: 8px; background: #fff1f2; color: #a90016; font-size: 14px; line-height: 1.4; }
+.recovery-toggle { margin-top: 20px; text-align: center; }
+.link-button { border: 0; background: none; padding: 4px; color: #b90018; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
+.link-button:focus-visible, .secondary-button:focus-visible { outline: 3px solid #ec8390; outline-offset: 3px; }
+.recovery-panel { margin-top: 16px; padding: 18px; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; }
+.recovery-panel > p { margin: 0 0 12px; color: #707988; font-size: 14px; line-height: 1.5; }
+.recovery-row { display: flex; gap: 10px; }
+.recovery-row input { flex: 1; min-width: 0; height: 48px; box-sizing: border-box; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; color: #202735; font: inherit; font-size: 14px; padding: 0 14px; }
+.recovery-row input::placeholder { color: #a2a9b3; }
+.recovery-row input:focus { outline: none; border-color: #be001a; box-shadow: 0 0 0 3px rgba(190,0,26,.12); }
+.secondary-button { border: 0; border-radius: 8px; background: #313b49; color: #fff; font: inherit; font-size: 14px; font-weight: 700; padding: 0 18px; cursor: pointer; white-space: nowrap; }
+.secondary-button:hover:not(:disabled) { background: #202735; }
+.secondary-button:disabled { opacity: .7; cursor: wait; }
+.success-message { margin-top: 12px; padding: 13px 15px; border: 1px solid #bfe3c9; border-radius: 8px; background: #eef9f0; color: #166534; font-size: 14px; line-height: 1.4; }
+.recovery-panel .error-message { margin-top: 12px; }
 .form-footer { margin: 55px 0 0; color: #929aa5; font-size: 12px; }
 .form-footer span { padding: 0 5px; color: #c5001a; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -130,6 +200,8 @@ form { margin-top: 44px; }
   .form-heading h2 { font-size: 32px; }
   form { margin-top: 32px; }
   .form-footer { margin-top: 40px; }
+  .recovery-row { flex-direction: column; }
+  .secondary-button { min-height: 48px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 </style>

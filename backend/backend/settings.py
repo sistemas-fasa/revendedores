@@ -216,6 +216,8 @@ ACCOUNTING_DB_ALIAS = config('ACCOUNTING_DB_ALIAS', default='default')
 ERP_DOCUMENT_RENDER_URL = config('ERP_DOCUMENT_RENDER_URL', default='')
 ERP_DOCUMENT_API_TOKEN = config('ERP_DOCUMENT_API_TOKEN', default='')
 ERP_DOCUMENT_TIMEOUT = config('ERP_DOCUMENT_TIMEOUT', default=15, cast=int)
+# Base pública del frontend (para armar el link de recupero de contraseña)
+FRONTEND_URL = config('FRONTEND_URL', default='https://ventas.ferreteriaavenida.com.ar')
 
 # Configuración de Email
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
