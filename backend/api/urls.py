@@ -1,6 +1,7 @@
 from django.urls import path, include
 from . import views
 from . import bot_views
+from . import password_reset_views
 from . import staff_views
 from rest_framework.routers import DefaultRouter
 
@@ -45,6 +46,9 @@ urlpatterns = [
     path('sincronizar-carrito/', staff_views.sincronizar_carrito, name='sincronizar-carrito'),
     # JWT
     path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # Recupero de contraseña por email (link con uid + token)
+    path('password-reset/', password_reset_views.solicitar_recuperacion, name='password_reset'),
+    path('password-reset/confirm/', password_reset_views.confirmar_recuperacion, name='password_reset_confirm'),
     # path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),    
     # NOTE: api/ is already prefixed in the project urls (path('api/', include('api.urls'))),
     # so this route must NOT include an extra 'api/' segment or it will be served at /api/api/token/refresh/.

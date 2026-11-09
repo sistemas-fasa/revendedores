@@ -12,6 +12,12 @@ const routes = [
     meta: { layout: 'auth' }
   },
   {
+    path: '/recuperar/:uid/:token',
+    name: 'recuperar-password',
+    component: () => import('@/views/RecuperarPassword.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/Dashboard.vue'),

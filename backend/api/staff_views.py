@@ -917,10 +917,19 @@ class StaffClientesView(APIView):
                 user_updated = False
                 
                 if 'email' in request.data and request.data['email'] != user.email:
+                    nuevo_email = (request.data['email'] or '').strip()
+                    if not nuevo_email:
+                        return Response({'error': 'El email es requerido: se usa para recuperar la contraseña.'}, status=400)
+                    from django.core.validators import validate_email as _validate_email
+                    from django.core.exceptions import ValidationError as _ValidationError
+                    try:
+                        _validate_email(nuevo_email)
+                    except _ValidationError:
+                        return Response({'error': 'El email ingresado no es válido.'}, status=400)
                     # Verificar que el email no esté en uso por otro usuario
-                    if User.objects.filter(email=request.data['email']).exclude(pk=user.pk).exists():
+                    if User.objects.filter(email=nuevo_email).exclude(pk=user.pk).exists():
                         return Response({'error': 'El email ya está registrado'}, status=400)
-                    user.email = request.data['email']
+                    user.email = nuevo_email
                     user_updated = True
                 
                 if 'first_name' in request.data:
