@@ -104,8 +104,12 @@ def download_invoice_pdf(*, company_id, customer_code, document_type, invoice_nu
     return content
 
 
-def download_receipt_pdf(*, company_id, customer_code, receipt_number, payments):
-    """Send portal payment rows to the ERP renderer for a centrally resolved receipt."""
+def download_receipt_pdf(*, company_id, customer_code, receipt_number, payments, valores=()):
+    """Send portal payment rows to the ERP renderer for a centrally resolved receipt.
+
+    `payments` valida los totales contra las aplicaciones del ERP; `valores`
+    (medios reales de caja) solo se muestra en el detalle del PDF.
+    """
     if not re.fullmatch(r"\d{5}", str(customer_code or "")) or not re.fullmatch(r"\d{12}", str(receipt_number or "")):
         raise InvoiceNotFound
     endpoint = str(getattr(settings, "ERP_DOCUMENT_RENDER_URL", "") or "").strip()
@@ -124,6 +128,7 @@ def download_receipt_pdf(*, company_id, customer_code, receipt_number, payments)
         "customer_code": customer_code,
         "receipt_number": receipt_number,
         "payments": payments,
+        "valores": list(valores),
     }, separators=(",", ":")).encode("utf-8")
     request = Request(endpoint, data=payload, headers={
         "Authorization": f"Bearer {token}",

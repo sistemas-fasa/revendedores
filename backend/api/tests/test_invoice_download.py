@@ -199,9 +199,10 @@ class InvoiceDownloadTests(SimpleTestCase):
     @patch("api.views.Cliente.objects.get")
     @patch("api.models.CuentaCorrienteCliente.objects.using")
     @patch("api.models.Cobranzas.objects.using")
+    @patch("api.views.connections")
     @patch("api.views.download_receipt_pdf")
     def test_recibo_autenticado_envia_medios_de_pago_al_renderizador(
-        self, download_pdf, payments_using, account_using, customer_get
+        self, download_pdf, connections_mock, payments_using, account_using, customer_get
     ):
         customer_get.return_value = self.customer
         account_using.return_value.filter.return_value.exists.return_value = True
@@ -210,6 +211,7 @@ class InvoiceDownloadTests(SimpleTestCase):
             banco="Banco", numero="ref-1", vence=None,
         )
         payments_using.return_value.filter.return_value.order_by.return_value = [payment]
+        connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value.fetchall.return_value = []
         download_pdf.return_value = self.pdf
 
         response = self._get(tipo="R", numero="000100000001")
@@ -272,8 +274,8 @@ class InvoiceDownloadTests(SimpleTestCase):
         payments_using.return_value.filter.return_value.order_by.return_value = []
         cursor = connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value
         cursor.fetchall.return_value = [
-            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00),
-            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33),
+            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00, "DEPOSITO EN CUENTA"),
+            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33, "CHEQUE TERCERO"),
         ]
         download_pdf.return_value = self.pdf
 
@@ -285,19 +287,23 @@ class InvoiceDownloadTests(SimpleTestCase):
             [
                 {
                     "amount": "2000000.00",
-                    "method": "12 · Dep. Cta. HARTGE JOSE NOLI",
+                    "method": "DEPOSITO EN CUENTA · Dep. Cta. HARTGE JOSE NOLI",
                     "bank": None,
                     "reference": None,
                     "due_date": "2026-11-03",
                 },
                 {
                     "amount": "403333.33",
-                    "method": "03 · Cobranza",
+                    "method": "CHEQUE TERCERO · Cobranza",
                     "bank": "CORRIENTES S.A.",
                     "reference": "31343291",
                     "due_date": "2026-10-26",
                 },
             ],
+        )
+        self.assertEqual(
+            download_pdf.call_args.kwargs["valores"],
+            download_pdf.call_args.kwargs["payments"],
         )
 
     @override_settings(EMPRESA_ID=2, ACCOUNTING_DB_ALIAS="default")
@@ -318,8 +324,8 @@ class InvoiceDownloadTests(SimpleTestCase):
         payments_using.return_value.filter.return_value.order_by.return_value = [linked]
         cursor = connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value
         cursor.fetchall.return_value = [
-            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00),
-            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33),
+            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00, "DEPOSITO EN CUENTA"),
+            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33, "CHEQUE TERCERO"),
         ]
         download_pdf.return_value = self.pdf
 
@@ -329,6 +335,56 @@ class InvoiceDownloadTests(SimpleTestCase):
         payments = download_pdf.call_args.kwargs["payments"]
         self.assertEqual(len(payments), 2)
         self.assertEqual(payments[0]["amount"], "2000000.00")
+        self.assertEqual(payments[0]["method"], "DEPOSITO EN CUENTA · Dep. Cta. HARTGE JOSE NOLI")
+        valores = download_pdf.call_args.kwargs["valores"]
+        self.assertEqual(len(valores), 2)
+        self.assertEqual(valores[1]["method"], "CHEQUE TERCERO · Cobranza")
+
+    @override_settings(EMPRESA_ID=2, ACCOUNTING_DB_ALIAS="default")
+    @patch("api.views.Cliente.objects.get")
+    @patch("api.models.CuentaCorrienteCliente.objects.using")
+    @patch("api.models.Cobranzas.objects.using")
+    @patch("api.views.connections")
+    @patch("api.views.download_receipt_pdf")
+    def test_recibo_normal_envia_aplicaciones_y_valores_de_caja(
+        self, download_pdf, connections_mock, payments_using, account_using, customer_get
+    ):
+        customer_get.return_value = self.customer
+        account_using.return_value.filter.return_value.exists.return_value = True
+        applied = SimpleNamespace(
+            monto=12684.00, tipo="R", codigo="F", detalle="Cobranza",
+            banco="", numero="", vence=None,
+        )
+        payments_using.return_value.filter.return_value.order_by.return_value = [applied]
+        cursor = connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [
+            ("00", "Cobranza", "", "", "2026-10-27", 12684.00, "EFECTIVO"),
+        ]
+        download_pdf.return_value = self.pdf
+
+        response = self._get(tipo="R", numero="000100172083")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            download_pdf.call_args.kwargs["payments"],
+            [{
+                "amount": "12684.00",
+                "method": "R · F · Cobranza",
+                "bank": None,
+                "reference": None,
+                "due_date": None,
+            }],
+        )
+        self.assertEqual(
+            download_pdf.call_args.kwargs["valores"],
+            [{
+                "amount": "12684.00",
+                "method": "EFECTIVO · Cobranza",
+                "bank": None,
+                "reference": None,
+                "due_date": "2026-10-27",
+            }],
+        )
 
     @override_settings(
         ERP_DOCUMENT_RENDER_URL="https://erp.example/api/v1/documents/invoices/by-reference",
@@ -346,3 +402,36 @@ class InvoiceDownloadTests(SimpleTestCase):
                 receipt_number="000100000001",
                 payments=[{"amount": "1250.00", "method": "Transferencia"}],
             )
+
+    @override_settings(
+        ERP_DOCUMENT_RENDER_URL="https://erp.example/api/v1/documents/invoices/by-reference",
+        ERP_DOCUMENT_API_TOKEN="integration-secret",
+        ERP_DOCUMENT_TIMEOUT=8,
+    )
+    @patch("api.services.erp_documents.urlopen")
+    def test_recibo_envia_valores_de_caja_al_erp(self, urlopen):
+        urlopen.return_value.__enter__.return_value = self.erp_response
+
+        download_receipt_pdf(
+            company_id=2,
+            customer_code="00591",
+            receipt_number="000300018948",
+            payments=[{"amount": "2403333.33", "method": "Cobranza"}],
+            valores=[
+                {"amount": "2000000.00", "method": "DEPOSITO EN CUENTA", "bank": None,
+                 "reference": None, "due_date": "2026-11-03"},
+                {"amount": "403333.33", "method": "CHEQUE TERCERO", "bank": "CORRIENTES S.A.",
+                 "reference": "31343291", "due_date": "2026-10-26"},
+            ],
+        )
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            json.loads(request.data)["valores"],
+            [
+                {"amount": "2000000.00", "method": "DEPOSITO EN CUENTA", "bank": None,
+                 "reference": None, "due_date": "2026-11-03"},
+                {"amount": "403333.33", "method": "CHEQUE TERCERO", "bank": "CORRIENTES S.A.",
+                 "reference": "31343291", "due_date": "2026-10-26"},
+            ],
+        )
