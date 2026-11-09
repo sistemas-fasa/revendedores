@@ -46,7 +46,7 @@
               <p class="text-xs text-gray-500">{{ d.clave || d.articulo }}</p>
             </div>
             <button
-              @click="quitar(d.articulo)"
+              @click="quitar(d.articulo, d.nombre)"
               class="text-sm border border-red-200 bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100"
             >Quitar</button>
           </li>
@@ -59,6 +59,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import Swal from 'sweetalert2';
 import api from '../services/api';
 
 const destacados = ref([]);
@@ -100,17 +101,28 @@ const agregar = async (clave) => {
     await fetchDestacados();
   } catch (e) {
     console.error('Error al destacar:', e);
-    alert(e.response?.data ? JSON.stringify(e.response.data) : 'No se pudo destacar el artículo.');
+    Swal.fire({ icon: 'error', title: 'No se pudo destacar', text: e.response?.data ? JSON.stringify(e.response.data) : 'No se pudo destacar el artículo.' });
   }
 };
 
-const quitar = async (clave) => {
-  if (!confirm(`¿Quitar ${clave} de destacados?`)) return;
+const quitar = async (clave, nombre) => {
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: 'Quitar destacado',
+    text: `¿Quitar ${nombre || clave} (${clave}) de destacados?`,
+    showCancelButton: true,
+    confirmButtonText: 'Sí, quitar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#dc2626',
+  });
+  if (!result.isConfirmed) return;
   try {
     await api.delete(`/api/destacados/${encodeURIComponent(clave)}/`);
     await fetchDestacados();
+    Swal.fire({ icon: 'success', title: 'Quitado', text: `${clave} ya no es destacado.`, timer: 1800, showConfirmButton: false });
   } catch (e) {
     console.error('Error al quitar destacado:', e);
+    Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo quitar el destacado.' });
   }
 };
 
