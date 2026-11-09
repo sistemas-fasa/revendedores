@@ -245,16 +245,90 @@ class InvoiceDownloadTests(SimpleTestCase):
     @patch("api.views.Cliente.objects.get")
     @patch("api.models.CuentaCorrienteCliente.objects.using")
     @patch("api.models.Cobranzas.objects.using")
+    @patch("api.views.connections")
     @patch("api.views.download_receipt_pdf", side_effect=ReceiptApplicationMismatch)
-    def test_recibo_inconsistente_devuelve_mensaje_de_aplicaciones(self, download_pdf, payments_using, account_using, customer_get):
+    def test_recibo_inconsistente_devuelve_mensaje_de_aplicaciones(self, download_pdf, connections_mock, payments_using, account_using, customer_get):
         customer_get.return_value = self.customer
         account_using.return_value.filter.return_value.exists.return_value = True
         payments_using.return_value.filter.return_value.order_by.return_value = []
+        connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value.fetchall.return_value = []
 
         response = self._get(tipo="R", numero="000100000001")
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.data["message"], "El recibo no coincide con las facturas aplicadas.")
+
+    @override_settings(EMPRESA_ID=2, ACCOUNTING_DB_ALIAS="default")
+    @patch("api.views.Cliente.objects.get")
+    @patch("api.models.CuentaCorrienteCliente.objects.using")
+    @patch("api.models.Cobranzas.objects.using")
+    @patch("api.views.connections")
+    @patch("api.views.download_receipt_pdf")
+    def test_recibo_a_cuenta_envia_medios_de_caja_al_renderizador(
+        self, download_pdf, connections_mock, payments_using, account_using, customer_get
+    ):
+        customer_get.return_value = self.customer
+        account_using.return_value.filter.return_value.exists.return_value = True
+        payments_using.return_value.filter.return_value.order_by.return_value = []
+        cursor = connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [
+            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00),
+            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33),
+        ]
+        download_pdf.return_value = self.pdf
+
+        response = self._get(tipo="R", numero="000300018948")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            download_pdf.call_args.kwargs["payments"],
+            [
+                {
+                    "amount": "2000000.00",
+                    "method": "12 · Dep. Cta. HARTGE JOSE NOLI",
+                    "bank": None,
+                    "reference": None,
+                    "due_date": "2026-11-03",
+                },
+                {
+                    "amount": "403333.33",
+                    "method": "03 · Cobranza",
+                    "bank": "CORRIENTES S.A.",
+                    "reference": "31343291",
+                    "due_date": "2026-10-26",
+                },
+            ],
+        )
+
+    @override_settings(EMPRESA_ID=2, ACCOUNTING_DB_ALIAS="default")
+    @patch("api.views.Cliente.objects.get")
+    @patch("api.models.CuentaCorrienteCliente.objects.using")
+    @patch("api.models.Cobranzas.objects.using")
+    @patch("api.views.connections")
+    @patch("api.views.download_receipt_pdf")
+    def test_recibo_solo_compensado_usa_caja_y_no_duplica_aplicaciones(
+        self, download_pdf, connections_mock, payments_using, account_using, customer_get
+    ):
+        customer_get.return_value = self.customer
+        account_using.return_value.filter.return_value.exists.return_value = True
+        linked = SimpleNamespace(
+            monto=2403333.33, tipo="R", codigo="R", detalle="Cobranza",
+            banco="", numero="", vence=None,
+        )
+        payments_using.return_value.filter.return_value.order_by.return_value = [linked]
+        cursor = connections_mock.__getitem__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [
+            ("12", "Dep. Cta. HARTGE JOSE NOLI", "", "", "2026-11-03", 2000000.00),
+            ("03", "Cobranza", "CORRIENTES S.A.", "31343291", "2026-10-26", 403333.33),
+        ]
+        download_pdf.return_value = self.pdf
+
+        response = self._get(tipo="R", numero="000300018948")
+
+        self.assertEqual(response.status_code, 200)
+        payments = download_pdf.call_args.kwargs["payments"]
+        self.assertEqual(len(payments), 2)
+        self.assertEqual(payments[0]["amount"], "2000000.00")
 
     @override_settings(
         ERP_DOCUMENT_RENDER_URL="https://erp.example/api/v1/documents/invoices/by-reference",

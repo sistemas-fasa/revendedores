@@ -2,7 +2,8 @@ import threading
 import secrets
 import string
 import re
-from django.db import models, transaction, IntegrityError
+from django.db import models, transaction, IntegrityError, connections
+from django.db.utils import DatabaseError
 from django.contrib.auth import logout
 from django.db.models import Case, When, BooleanField
 
@@ -1230,6 +1231,54 @@ def comprobantes_cliente(request):
         }, status=500)
 
 
+class _MedioCaja:
+    """Medio de pago de un recibo leído de caja (misma forma que una fila de Cobranzas)."""
+
+    def __init__(self, tipo, detalle, banco, numero, vence, impentra, recibo):
+        self.tipo = tipo
+        self.recibo = recibo
+        self.codigo = ''
+        self.monto = impentra
+        self.detalle = detalle
+        self.banco = banco
+        self.numero = numero
+        self.vence = vence
+        self.impentra = impentra
+        self.comp = recibo
+
+
+def _tiene_facturas_o_notas(rows):
+    return any(str(getattr(row, 'codigo', '') or '').strip().upper() in {'F', 'C', 'D'} for row in rows)
+
+
+def _medios_caja_recibo(numero_comprobante):
+    """Lee los ingresos de caja del recibo (cheques, depósitos, transferencias, efectivo).
+
+    Se usa cuando el recibo no aplica facturas ni notas (caso "A Cuenta"): la vista
+    `cobranzas` no trae esas filas porque el renglón no referencia ningún comprobante.
+    Ante una falla de lectura se devuelve lista vacía y el flujo sigue su curso normal.
+    """
+    try:
+        with connections[settings.ACCOUNTING_DB_ALIAS].cursor() as cursor:
+            cursor.execute(
+                "SELECT TIPO, DETALLE, BANCO, NUMERO, VENCE, IMPENTRA"
+                " FROM fasa.cajamov"
+                " WHERE empresa_id=%s AND DOCUMENTO='R' AND COMP=%s AND IMPENTRA>0"
+                " ORDER BY IDCAJAMOV",
+                [settings.EMPRESA_ID, numero_comprobante],
+            )
+            filas = cursor.fetchall()
+    except DatabaseError:
+        logger.exception("No se pudieron leer los medios de caja del recibo %s", numero_comprobante)
+        return []
+    medios = []
+    for tipo, detalle, banco, numero, vence, impentra in filas:
+        if impentra is None:
+            continue
+        medios.append(_MedioCaja(tipo, detalle, banco, numero, vence, impentra, numero_comprobante))
+    return medios
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def descargar_comprobante_pdf(request, tipo, numero_comprobante):
@@ -1253,9 +1302,13 @@ def descargar_comprobante_pdf(request, tipo, numero_comprobante):
             ).exists()
             if not belongs_to_customer:
                 raise InvoiceNotFound
-            rows = Cobranzas.objects.using(settings.ACCOUNTING_DB_ALIAS).filter(
+            rows = list(Cobranzas.objects.using(settings.ACCOUNTING_DB_ALIAS).filter(
                 models.Q(recibo=invoice_number) | models.Q(comp=invoice_number)
-            ).order_by('id')
+            ).order_by('id'))
+            if not _tiene_facturas_o_notas(rows):
+                medios = _medios_caja_recibo(invoice_number)
+                if medios:
+                    rows = medios
             payments = [{
                 'amount': format(row.monto or 0, '.2f'),
                 'method': ' · '.join(value for value in (
@@ -1361,16 +1414,20 @@ def detalle_comprobante(request, numero_comprobante):
             from .models import Cobranzas
 
             # Buscar registros que pertenezcan al recibo o al comprobante asociado
-            cobranzas_qs = Cobranzas.objects.using(settings.ACCOUNTING_DB_ALIAS).filter(models.Q(recibo=numero_comprobante) | models.Q(comp=numero_comprobante)).order_by('id')
+            cobranzas_qs = list(Cobranzas.objects.using(settings.ACCOUNTING_DB_ALIAS).filter(models.Q(recibo=numero_comprobante) | models.Q(comp=numero_comprobante)).order_by('id'))
+            if not _tiene_facturas_o_notas(cobranzas_qs):
+                medios = _medios_caja_recibo(numero_comprobante)
+                if medios:
+                    cobranzas_qs = medios
 
-            if not cobranzas_qs.exists():
+            if not cobranzas_qs:
                 return Response({
                     'error': 'Detalle de recibo no encontrado',
                     'message': f'No se encontraron registros de cobranza para el recibo {numero_comprobante}'
                 }, status=404)
 
             # Construir encabezado a partir de la cuenta corriente y el primer registro (si existe)
-            primer = cobranzas_qs.first()
+            primer = cobranzas_qs[0]
             encabezado = {
                 'numero': comprobante_cc.numero,
                 'codigo': comprobante_cc.codigo,
