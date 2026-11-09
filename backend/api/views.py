@@ -1234,7 +1234,7 @@ def comprobantes_cliente(request):
 class _MedioCaja:
     """Medio de pago de un recibo leído de caja (misma forma que una fila de Cobranzas)."""
 
-    def __init__(self, tipo, detalle, banco, numero, vence, impentra, recibo):
+    def __init__(self, tipo, detalle, banco, numero, vence, impentra, recibo, nombre_tipo=None):
         self.tipo = tipo
         self.recibo = recibo
         self.codigo = ''
@@ -1245,6 +1245,7 @@ class _MedioCaja:
         self.vence = vence
         self.impentra = impentra
         self.comp = recibo
+        self.nombre_tipo = nombre_tipo
 
 
 def _tiene_facturas_o_notas(rows):
@@ -1252,19 +1253,21 @@ def _tiene_facturas_o_notas(rows):
 
 
 def _medios_caja_recibo(numero_comprobante):
-    """Lee los ingresos de caja del recibo (cheques, depósitos, transferencias, efectivo).
+    """Lee los movimientos de caja del recibo con la etiqueta del medio (cajatipo).
 
     Se usa cuando el recibo no aplica facturas ni notas (caso "A Cuenta"): la vista
     `cobranzas` no trae esas filas porque el renglón no referencia ningún comprobante.
-    Ante una falla de lectura se devuelve lista vacía y el flujo sigue su curso normal.
+    También alimenta el detalle de valores del PDF. Ante una falla de lectura se
+    devuelve lista vacía y el flujo sigue su curso normal.
     """
     try:
         with connections[settings.ACCOUNTING_DB_ALIAS].cursor() as cursor:
             cursor.execute(
-                "SELECT TIPO, DETALLE, BANCO, NUMERO, VENCE, IMPENTRA"
-                " FROM fasa.cajamov"
-                " WHERE empresa_id=%s AND DOCUMENTO='R' AND COMP=%s AND IMPENTRA>0"
-                " ORDER BY IDCAJAMOV",
+                "SELECT cj.TIPO, cj.DETALLE, cj.BANCO, cj.NUMERO, cj.VENCE, cj.IMPENTRA,"
+                " NULLIF(TRIM(t.NOMBRE), '')"
+                " FROM fasa.cajamov cj LEFT JOIN fasa.cajatipo t ON t.TIPO=cj.TIPO"
+                " WHERE cj.empresa_id=%s AND cj.DOCUMENTO='R' AND cj.COMP=%s"
+                " ORDER BY cj.IDCAJAMOV",
                 [settings.EMPRESA_ID, numero_comprobante],
             )
             filas = cursor.fetchall()
@@ -1272,11 +1275,35 @@ def _medios_caja_recibo(numero_comprobante):
         logger.exception("No se pudieron leer los medios de caja del recibo %s", numero_comprobante)
         return []
     medios = []
-    for tipo, detalle, banco, numero, vence, impentra in filas:
+    for tipo, detalle, banco, numero, vence, impentra, nombre_tipo in filas:
         if impentra is None:
             continue
-        medios.append(_MedioCaja(tipo, detalle, banco, numero, vence, impentra, numero_comprobante))
+        medios.append(_MedioCaja(tipo, detalle, banco, numero, vence, impentra, numero_comprobante, nombre_tipo))
     return medios
+
+
+def _etiqueta_medio(medio):
+    nombre = str(getattr(medio, 'nombre_tipo', '') or '').strip()
+    detalle = str(medio.detalle or '').strip()
+    if nombre and detalle and nombre != detalle:
+        return f'{nombre} · {detalle}'
+    return nombre or detalle or 'Cobranza'
+
+
+def _pago_dict(row):
+    if getattr(row, 'nombre_tipo', None) is not None:
+        method = _etiqueta_medio(row)
+    else:
+        method = ' · '.join(value for value in (
+            str(row.tipo or '').strip(), str(row.codigo or '').strip(), str(row.detalle or '').strip()
+        ) if value) or 'Otro'
+    return {
+        'amount': format(row.monto or 0, '.2f'),
+        'method': method,
+        'bank': str(row.banco or '').strip() or None,
+        'reference': str(row.numero or '').strip() or None,
+        'due_date': formatear_fecha(row.vence) if row.vence else None,
+    }
 
 
 @api_view(['GET'])
@@ -1305,24 +1332,19 @@ def descargar_comprobante_pdf(request, tipo, numero_comprobante):
             rows = list(Cobranzas.objects.using(settings.ACCOUNTING_DB_ALIAS).filter(
                 models.Q(recibo=invoice_number) | models.Q(comp=invoice_number)
             ).order_by('id'))
+            medios_caja = _medios_caja_recibo(invoice_number)
             if not _tiene_facturas_o_notas(rows):
-                medios = _medios_caja_recibo(invoice_number)
-                if medios:
-                    rows = medios
-            payments = [{
-                'amount': format(row.monto or 0, '.2f'),
-                'method': ' · '.join(value for value in (
-                    str(row.tipo or '').strip(), str(row.codigo or '').strip(), str(row.detalle or '').strip()
-                ) if value) or 'Otro',
-                'bank': str(row.banco or '').strip() or None,
-                'reference': str(row.numero or '').strip() or None,
-                'due_date': formatear_fecha(row.vence) if row.vence else None,
-            } for row in rows]
+                cobro = [medio for medio in medios_caja if (medio.impentra or 0) > 0]
+                if cobro:
+                    rows = cobro
+            payments = [_pago_dict(row) for row in rows]
+            valores = [_pago_dict(medio) for medio in medios_caja]
             content = download_receipt_pdf(
                 company_id=settings.EMPRESA_ID,
                 customer_code=cliente.numero_cliente,
                 receipt_number=invoice_number,
                 payments=payments,
+                valores=valores,
             )
         else:
             content = download_invoice_pdf(
