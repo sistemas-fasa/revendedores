@@ -254,6 +254,7 @@ class ArticuloSerializer(BaseSerializer):
     mostrar_precio = serializers.SerializerMethodField()
     imagen = serializers.SerializerMethodField()
     destacado_avenida = serializers.SerializerMethodField()
+    stock_estado = serializers.SerializerMethodField()
 
     class Meta:
         model = Articulos
@@ -307,6 +308,12 @@ class ArticuloSerializer(BaseSerializer):
         if hasattr(obj, 'es_destacado_avenida'):
             return bool(obj.es_destacado_avenida)
         return ArticuloDestacado.objects.filter(articulo=obj).exists()
+
+    def get_stock_estado(self, obj):
+        """Semáforo sobre el efectivo (fresco, horario) y el mínimo (semanal)."""
+        from api.services.stock import stock_estado
+        efectivo = obj.stock_efectivo if obj.stock_efectivo is not None else obj.stock
+        return stock_estado(efectivo, obj.stock_minimo)
 
     def get_mostrar_precio(self, obj):
         """

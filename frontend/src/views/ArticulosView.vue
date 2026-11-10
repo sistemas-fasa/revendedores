@@ -11,6 +11,7 @@ import { cart } from '@/services/cart';
 import MobileOrderDrawer from '@/components/MobileOrderDrawer.vue';
 import QuickLoadPanel from '@/components/QuickLoadPanel.vue';
 import OrderSidebar from '@/components/OrderSidebar.vue';
+import StockBadge from '@/components/StockBadge.vue';
 import ActionButton from '@/components/ui/ActionButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
@@ -176,6 +177,42 @@ const formatCurrency = (value) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(number)
+}
+
+// === SEMÁFORO DE STOCK (usa stock_efectivo del backend, fallback a stock) ===
+const getEfectivo = (art) => {
+  if (!art) return null
+  const raw = art.stock_efectivo ?? art.stock
+  const n = parseFloat(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+const getEstadoStock = (art) => {
+  if (!art) return 'sin_datos'
+  if (art.stock_estado) return art.stock_estado
+  const ef = getEfectivo(art)
+  if (ef === null) return 'sin_datos'
+  if (ef <= 0) return 'rojo'
+  const min = parseFloat(art.stock_minimo)
+  if (!Number.isFinite(min)) return 'verde'
+  return ef <= min ? 'amarillo' : 'verde'
+}
+
+const esTipoSuperficie = (art) => (art?.campoa1 || '').toLowerCase() === 'a' && parseFloat(art?.mts2) > 0
+
+// Bloquea sin stock; en m² no compara cantidades (unidad distinta al stock)
+const validarStock = (articulo, cantidad) => {
+  const ef = getEfectivo(articulo)
+  if (ef === null) return true
+  if (ef <= 0) {
+    showNotification(`Sin stock disponible: ${articulo.nombre}`, 'error')
+    return false
+  }
+  if (!esTipoSuperficie(articulo) && cantidad > ef) {
+    showNotification(`La cantidad supera el stock disponible (${formatStock(ef)})`, 'error')
+    return false
+  }
+  return true
 }
 
 // Formatear cantidad/stock para mostrar en la UI
@@ -752,7 +789,7 @@ const agregarAlCarrito = () => {
     showNotification('Debe ingresar una cantidad válida', 'error')
     return
   }
-  
+
   let cantidadAAgregar = modalCarrito.value.cantidad
   let superficieReal = modalCarrito.value.superficie
   
@@ -771,6 +808,11 @@ const agregarAlCarrito = () => {
     console.log(`� Cajas necesarias: ${cajasNecesarias}`)
     console.log(`📏 Superficie real (múltiplo): ${superficieReal} m²`)
     console.log(`� Cantidad a agregar al carrito: ${cantidadAAgregar} m²`)
+  }
+
+  // Semáforo: bloquear sin stock o cantidad mayor al disponible
+  if (!validarStock(modalCarrito.value.articulo, cantidadAAgregar)) {
+    return
   }
   
   console.log('🛒 Agregando al carrito:', {
@@ -912,6 +954,9 @@ const quickQuantityHelper = (articulo) => {
 
 const quickAddToCart = (articulo) => {
   const cantidad = getQuickQuantity(articulo)
+  if (!validarStock(articulo, cantidad)) {
+    return
+  }
   const existing = getCartItem(articulo)
   if (existing) {
     cart.updateQuantity(articulo.clave, cantidad)
@@ -1254,11 +1299,26 @@ onMounted(() => {
                   <p class="text-gray-500">IVA</p>
                   <p class="font-semibold">{{ art.iva }}%</p>
                 </div>
+                <div>
+                  <p class="text-gray-500 mb-1">Stock</p>
+                  <StockBadge
+                    :estado="getEstadoStock(art)"
+                    :stock="getEfectivo(art)"
+                    :minimo="art.stock_minimo"
+                    :descuenta-de="art.descuenta_de"
+                  />
+                </div>
               </div>
 
-              <!-- Mostrar stock prominente para artículos en oferta: barra a todo ancho -->
+              <!-- Semáforo de stock para artículos en oferta: barra a todo ancho -->
               <div v-if="art.oferta === 'S'" class="w-full mt-4">
-                <div class="w-full bg-green-700 text-white text-sm font-bold px-3 py-2 rounded-lg text-center">Stock disponible: {{ formatStock(art.stock) }}</div>
+                <StockBadge
+                  :estado="getEstadoStock(art)"
+                  :stock="getEfectivo(art)"
+                  :minimo="art.stock_minimo"
+                  :descuenta-de="art.descuenta_de"
+                  full
+                />
               </div>
 
               <div class="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-3">
@@ -1396,10 +1456,13 @@ onMounted(() => {
                     <p class="font-semibold text-gray-900">{{ art.iva }}%</p>
                   </div>
                   <div>
-                    <p class="text-gray-500">Stock</p>
-                    <p :class="art.oferta === 'S' ? 'font-bold text-green-700' : 'font-semibold text-gray-900'">
-                      {{ formatStock(art.stock) }}
-                    </p>
+                    <p class="text-gray-500 mb-1">Stock</p>
+                    <StockBadge
+                      :estado="getEstadoStock(art)"
+                      :stock="getEfectivo(art)"
+                      :minimo="art.stock_minimo"
+                      :descuenta-de="art.descuenta_de"
+                    />
                   </div>
                 </div>
               </div>
@@ -1684,6 +1747,14 @@ onMounted(() => {
                 <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-700">
                   <span class="rounded-md border border-gray-200 bg-white px-2.5 py-1">Clave {{ modalCarrito.articulo?.clave }}</span>
                   <span v-if="modalCarrito.tipo" class="rounded-md border border-gray-200 bg-white px-2.5 py-1">Tipo {{ modalCarrito.tipo }}</span>
+                </div>
+                <div class="mt-3">
+                  <StockBadge
+                    :estado="getEstadoStock(modalCarrito.articulo)"
+                    :stock="getEfectivo(modalCarrito.articulo)"
+                    :minimo="modalCarrito.articulo?.stock_minimo"
+                    :descuenta-de="modalCarrito.articulo?.descuenta_de"
+                  />
                 </div>
               </div>
               <div class="shrink-0 rounded-lg bg-white px-4 py-3 text-left shadow-sm sm:text-right">

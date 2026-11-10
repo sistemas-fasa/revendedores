@@ -5,7 +5,7 @@ import re
 from django.db import models, transaction, IntegrityError, connections
 from django.db.utils import DatabaseError
 from django.contrib.auth import logout
-from django.db.models import Case, When, BooleanField, Exists, OuterRef
+from django.db.models import Case, When, BooleanField, Exists, OuterRef, Q
 
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
@@ -659,8 +659,12 @@ class ArticuloViewSet(BaseAppModelViewSet):
                             break
 
                     if ofert_field:
-                        # Sólo incluir artículos marcados como oferta y que tengan stock mayor a 0
-                        queryset = queryset.filter(**{ofert_field: 'S'}).filter(stock__gt=0)
+                        # Ofertas con stock efectivo (hijos resuelven al padre);
+                        # fallback a stock propio mientras el horario no calculó.
+                        queryset = queryset.filter(**{ofert_field: 'S'}).filter(
+                            Q(stock_efectivo__gt=0)
+                            | Q(stock_efectivo__isnull=True, stock__gt=0)
+                        )
                 except Exception:
                     # Si algo falla, no interrumpir; devolver queryset sin filtrar
                     pass
@@ -684,7 +688,10 @@ class ArticuloViewSet(BaseAppModelViewSet):
                         break
 
                 if ofert_field:
-                    qs = qs.filter(**{ofert_field: 'S'}).filter(stock__gt=0)
+                    qs = qs.filter(**{ofert_field: 'S'}).filter(
+                        Q(stock_efectivo__gt=0)
+                        | Q(stock_efectivo__isnull=True, stock__gt=0)
+                    )
             except Exception:
                 pass
         return qs.order_by('-es_destacado_avenida', 'clave')
