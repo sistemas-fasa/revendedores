@@ -53,6 +53,8 @@ class Articulos(models.Model):
     visible = models.CharField(max_length=1, verbose_name="Visible")
     grupo = models.CharField(max_length=3, verbose_name="Grupo", default='')
     stock = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Stock", default=0)
+    stock_minimo = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Stock Mínimo", null=True, blank=True, default=None)
+    descuenta_de = models.CharField(max_length=8, verbose_name="Descuenta Stock De", default='', blank=True)
     formula = models.CharField(max_length=20, verbose_name="Formula", default='')
     descripcion = models.CharField(max_length=100)
     discontinuado = models.CharField(max_length=1, verbose_name="Discontinuado", default='')

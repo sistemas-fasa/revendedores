@@ -1,0 +1,8 @@
+ARG BASE_IMAGE=local/automatizaciones:rollback-stock-minimum
+FROM ${BASE_IMAGE}
+
+COPY price_sync_monitor.py /opt/automatizaciones/jobs/price_sync_monitor.py
+COPY stock_minimum.py /opt/automatizaciones/jobs/stock_minimum.py
+COPY cron.disabled /etc/cron.d/automatizaciones
+
+RUN chmod 0644 /etc/cron.d/automatizaciones
