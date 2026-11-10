@@ -205,11 +205,11 @@ const validarStock = (articulo, cantidad) => {
   const ef = getEfectivo(articulo)
   if (ef === null) return true
   if (ef <= 0) {
-    showNotification(`Sin stock disponible: ${articulo.nombre}`, 'error')
+    showNotification(`Sin stock disponible, por favor consulte: ${articulo.nombre}`, 'error')
     return false
   }
   if (!esTipoSuperficie(articulo) && cantidad > ef) {
-    showNotification(`La cantidad supera el stock disponible (${formatStock(ef)})`, 'error')
+    showNotification('La cantidad supera el stock disponible, por favor consulte', 'error')
     return false
   }
   return true
@@ -1303,9 +1303,6 @@ onMounted(() => {
                   <p class="text-gray-500 mb-1">Stock</p>
                   <StockBadge
                     :estado="getEstadoStock(art)"
-                    :stock="getEfectivo(art)"
-                    :minimo="art.stock_minimo"
-                    :descuenta-de="art.descuenta_de"
                   />
                 </div>
               </div>
@@ -1314,9 +1311,6 @@ onMounted(() => {
               <div v-if="art.oferta === 'S'" class="w-full mt-4">
                 <StockBadge
                   :estado="getEstadoStock(art)"
-                  :stock="getEfectivo(art)"
-                  :minimo="art.stock_minimo"
-                  :descuenta-de="art.descuenta_de"
                   full
                 />
               </div>
@@ -1459,9 +1453,6 @@ onMounted(() => {
                     <p class="text-gray-500 mb-1">Stock</p>
                     <StockBadge
                       :estado="getEstadoStock(art)"
-                      :stock="getEfectivo(art)"
-                      :minimo="art.stock_minimo"
-                      :descuenta-de="art.descuenta_de"
                     />
                   </div>
                 </div>
@@ -1751,9 +1742,6 @@ onMounted(() => {
                 <div class="mt-3">
                   <StockBadge
                     :estado="getEstadoStock(modalCarrito.articulo)"
-                    :stock="getEfectivo(modalCarrito.articulo)"
-                    :minimo="modalCarrito.articulo?.stock_minimo"
-                    :descuenta-de="modalCarrito.articulo?.descuenta_de"
                   />
                 </div>
               </div>
