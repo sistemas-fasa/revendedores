@@ -18,7 +18,7 @@ const props = defineProps({
 })
 
 const etiquetas = {
-  verde: 'Normal',
+  verde: 'Stock normal',
   amarillo: 'Stock bajo',
   rojo: 'Consultar',
   sin_datos: 'Consultar',
