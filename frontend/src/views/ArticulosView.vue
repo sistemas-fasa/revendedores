@@ -1299,16 +1299,9 @@ onMounted(() => {
                   <p class="text-gray-500">IVA</p>
                   <p class="font-semibold">{{ art.iva }}%</p>
                 </div>
-                <div>
-                  <p class="text-gray-500 mb-1">Stock</p>
-                  <StockBadge
-                    :estado="getEstadoStock(art)"
-                  />
-                </div>
               </div>
 
-              <!-- Semáforo de stock para artículos en oferta: barra a todo ancho -->
-              <div v-if="art.oferta === 'S'" class="w-full mt-4">
+              <div class="w-full mt-4">
                 <StockBadge
                   :estado="getEstadoStock(art)"
                   full
@@ -1449,11 +1442,8 @@ onMounted(() => {
                     <p class="text-gray-500">IVA</p>
                     <p class="font-semibold text-gray-900">{{ art.iva }}%</p>
                   </div>
-                  <div>
-                    <p class="text-gray-500 mb-1">Stock</p>
-                    <StockBadge
-                      :estado="getEstadoStock(art)"
-                    />
+                  <div class="col-span-full">
+                    <StockBadge :estado="getEstadoStock(art)" full />
                   </div>
                 </div>
               </div>
