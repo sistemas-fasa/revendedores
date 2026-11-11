@@ -18,6 +18,7 @@ router = DefaultRouter()
 router.register(r'articulos', views.ArticuloViewSet)
 router.register(r'favoritos', views.FavoritoViewSet, basename='favorito')
 router.register(r'destacados', views.ArticuloDestacadoViewSet, basename='destacado')
+router.register(r'ocultos', views.ArticuloOcultoViewSet, basename='oculto')
 router.register(r'busquedas', views.BusquedaViewSet, basename='busqueda')
 router.register(r'pedidos', views.PedidoViewSet, basename='pedido')
 

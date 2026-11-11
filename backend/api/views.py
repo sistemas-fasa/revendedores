@@ -27,8 +27,8 @@ from datetime import timedelta
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework import filters
 
-from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, Busqueda, Pedido, RegistroSesion, BonificacionCliente, ConsultaPrecio, ArticuloVista, LinkOpen, ShortTrackingLink
-from .serializers import ArticuloSerializer, FormaPagoSerializer, FavoritoSerializer, ArticuloDestacadoSerializer, BusquedaSerializer, PedidoSerializer
+from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, ArticuloOculto, Busqueda, Pedido, RegistroSesion, BonificacionCliente, ConsultaPrecio, ArticuloVista, LinkOpen, ShortTrackingLink
+from .serializers import ArticuloSerializer, FormaPagoSerializer, FavoritoSerializer, ArticuloDestacadoSerializer, ArticuloOcultoSerializer, BusquedaSerializer, PedidoSerializer
 from .constants import TIPOS_COMPROBANTE
 from .fechas import esta_vencido, formatear_fecha
 from .services.precios import _precios_base_erp, calcular_precio_articulo
@@ -233,6 +233,31 @@ class ArticuloDestacadoViewSet(viewsets.ModelViewSet):
                 {"error": "Destacado no encontrado."},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class ArticuloOcultoViewSet(viewsets.ModelViewSet):
+    """ABM de artículos ocultos de la web (solo staff)."""
+
+    serializer_class = ArticuloOcultoSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        return ArticuloOculto.objects.select_related('creado_por').all()
+
+    def perform_create(self, serializer):
+        serializer.save(creado_por=self.request.user)
+
+
+def excluir_ocultos(queryset):
+    """Quita del catálogo las claves exactas y prefijos marcados como ocultos."""
+    reglas = ArticuloOculto.objects.all()
+    exactas = [r.patron for r in reglas if r.tipo == ArticuloOculto.TIPO_EXACTA]
+    prefijos = [r.patron for r in reglas if r.tipo == ArticuloOculto.TIPO_PREFIJO]
+    if exactas:
+        queryset = queryset.exclude(clave__in=exactas)
+    for prefijo in prefijos:
+        queryset = queryset.exclude(clave__startswith=prefijo)
+    return queryset
 
 
 User = get_user_model()
@@ -669,6 +694,7 @@ class ArticuloViewSet(BaseAppModelViewSet):
                     # Si algo falla, no interrumpir; devolver queryset sin filtrar
                     pass
 
+            queryset = excluir_ocultos(queryset)
             queryset = queryset.order_by('-es_destacado_avenida', '-is_favorito', 'clave')
             return queryset
 
@@ -694,6 +720,7 @@ class ArticuloViewSet(BaseAppModelViewSet):
                     )
             except Exception:
                 pass
+        qs = excluir_ocultos(qs)
         return qs.order_by('-es_destacado_avenida', 'clave')
 
     def list(self, request, *args, **kwargs):

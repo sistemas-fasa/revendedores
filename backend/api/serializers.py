@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework import serializers
 from django.db.models import Count
 
-from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, Busqueda, Pedido, PedidoItem, ExportEvent
+from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, ArticuloOculto, Busqueda, Pedido, PedidoItem, ExportEvent
 from .constants import CLAVE_LEN_THRESHOLD
 from .services.cantidades import validar_cantidad_articulo
 from .services.precios import calcular_precio_articulo
@@ -150,6 +150,31 @@ class ArticuloDestacadoSerializer(serializers.ModelSerializer):
         model = ArticuloDestacado
         fields = ['id', 'articulo', 'clave', 'nombre', 'fecha_creacion', 'creado_por', 'creado_por_username']
         read_only_fields = ('fecha_creacion', 'creado_por')
+
+
+class ArticuloOcultoSerializer(serializers.ModelSerializer):
+    creado_por_username = serializers.CharField(source='creado_por.username', read_only=True)
+
+    class Meta:
+        model = ArticuloOculto
+        fields = ['id', 'tipo', 'patron', 'motivo', 'fecha_creacion', 'creado_por', 'creado_por_username']
+        read_only_fields = ('fecha_creacion', 'creado_por')
+
+    def validate_patron(self, value):
+        patron = str(value or '').strip().upper()
+        if not patron:
+            raise serializers.ValidationError('El patrón no puede estar vacío.')
+        return patron
+
+    def validate(self, attrs):
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', ArticuloOculto.TIPO_EXACTA))
+        patron = attrs.get('patron', getattr(self.instance, 'patron', ''))
+        if tipo == ArticuloOculto.TIPO_PREFIJO and len(patron) < 3:
+            raise serializers.ValidationError({'patron': 'El prefijo debe tener al menos 3 caracteres.'})
+        if tipo == ArticuloOculto.TIPO_EXACTA and self.instance is None:
+            if not Articulos.objects.filter(clave=patron).exists():
+                raise serializers.ValidationError({'patron': f'No existe el artículo {patron}.'})
+        return attrs
 
 
 class BaseSerializer(serializers.ModelSerializer):

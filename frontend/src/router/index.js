@@ -92,6 +92,12 @@ const routes = [
     meta: { requiresAuth: true, requiresStaff: true }
   },
   {
+    path: '/staff/ocultos',
+    name: 'staff-ocultos',
+    component: () => import('@/views/StaffOcultosView.vue'),
+    meta: { requiresAuth: true, requiresStaff: true }
+  },
+  {
     path: '/staff/tracking',
     name: 'staff-tracking',
     component: () => import('@/views/StaffTracking.vue'),

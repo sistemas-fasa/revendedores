@@ -181,6 +181,41 @@ class ArticuloDestacado(models.Model):
     def __str__(self):
         return f'Avenida - {self.articulo.clave} {self.articulo.nombre}'        
 
+class ArticuloOculto(models.Model):
+    """Artículos que no se muestran en la web (catálogo/buscador).
+
+    Vive en tabla propia para que el actualizador horario no lo pise
+    (reescribe visible/estado de Articulos en cada corrida).
+    Soporta clave exacta o prefijo (ej: REM, COR0).
+    """
+
+    TIPO_EXACTA = 'exacta'
+    TIPO_PREFIJO = 'prefijo'
+    TIPO_CHOICES = [
+        (TIPO_EXACTA, 'Clave exacta'),
+        (TIPO_PREFIJO, 'Prefijo'),
+    ]
+
+    tipo = models.CharField(max_length=7, choices=TIPO_CHOICES, default=TIPO_EXACTA)
+    patron = models.CharField(max_length=12, verbose_name='Clave o prefijo')
+    motivo = models.CharField(max_length=100, blank=True, default='')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ocultos_creados',
+    )
+
+    class Meta:
+        verbose_name = 'Artículo oculto'
+        verbose_name_plural = 'Artículos ocultos'
+        ordering = ['tipo', 'patron']
+        constraints = [
+            models.UniqueConstraint(fields=['tipo', 'patron'], name='oculto_tipo_patron_unico'),
+        ]
+
+    def __str__(self):
+        return f'Oculto {self.tipo}: {self.patron}'
+
 class Busqueda(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='busquedas')
     query = models.CharField(max_length=255)

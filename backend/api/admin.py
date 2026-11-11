@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import BonificacionCliente, Cliente, FormaPago, Localidades, Articulos, ArticuloDestacado, ExportEvent, LinkOpen
+from .models import BonificacionCliente, Cliente, FormaPago, Localidades, Articulos, ArticuloDestacado, ArticuloOculto, ExportEvent, LinkOpen
 
 # Register your models here.
 
@@ -36,6 +36,15 @@ admin.site.register(FormaPago)
 admin.site.register(Localidades, LocalidadesAdmin)
 admin.site.register(Articulos, ArticulosAdmin)
 admin.site.register(ArticuloDestacado, ArticuloDestacadoAdmin)
+
+
+class ArticuloOcultoAdmin(admin.ModelAdmin):
+    list_display = ('tipo', 'patron', 'motivo', 'fecha_creacion', 'creado_por')
+    search_fields = ('patron', 'motivo')
+    list_filter = ('tipo',)
+
+
+admin.site.register(ArticuloOculto, ArticuloOcultoAdmin)
 admin.site.register(BonificacionCliente, BonificacionClienteAdmin)
 
 
