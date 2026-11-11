@@ -18,6 +18,12 @@ const routes = [
     meta: { layout: 'auth' }
   },
   {
+    path: '/activar',
+    name: 'activar-cuenta',
+    component: () => import('@/views/ActivarCuenta.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/Dashboard.vue'),
@@ -127,6 +133,8 @@ router.beforeEach((to, from, next) => {
     Swal.fire({ icon: 'error', title: 'Acceso denegado', text: 'Solo el personal autorizado puede acceder a esta área.' })
     next('/productos'); // Redirect to the main buying surface
   } else if (to.name === 'login' && authStore.isAuthenticated) {
+    next('/productos')
+  } else if (to.name === 'activar-cuenta' && authStore.isAuthenticated) {
     next('/productos')
   } else {
     next()
