@@ -272,19 +272,22 @@ class ArticuloSerializer(BaseSerializer):
         if obj.imagen:
             return request.build_absolute_uri(obj.imagen.url) if request else obj.imagen.url
         
-        # Intentar obtener la imagen del artículo padre
-        clave = obj.clave
-        
-        # Estrategia 1: Si la clave tiene más de CLAVE_LEN_THRESHOLD caracteres, buscar el padre con los primeros N
-        # Ej: 065.0301 -> 065.030
+        # Intentar obtener la imagen del artículo padre.
+        # Con código ampliado hay variantes de 8 y de 9: probar antecesores
+        # de largo decreciente (Ej: 029010651 -> 02901065 -> 0290106).
+        clave = str(obj.clave).strip()
+
+        # Estrategia 1: buscar el padre exacto con prefijos decrecientes
+        # Ej: 065.0301 -> 065.030 ; 029010651 -> 02901065
         if len(clave) > CLAVE_LEN_THRESHOLD:
-            clave_padre = clave[:CLAVE_LEN_THRESHOLD]
-            try:
-                articulo_padre = Articulos.objects.get(clave=clave_padre, empresa_id=settings.EMPRESA_ID)
-                if articulo_padre.imagen:
-                    return request.build_absolute_uri(articulo_padre.imagen.url) if request else articulo_padre.imagen.url
-            except Articulos.DoesNotExist:
-                pass
+            for largo in range(len(clave) - 1, CLAVE_LEN_THRESHOLD - 1, -1):
+                clave_padre = clave[:largo]
+                try:
+                    articulo_padre = Articulos.objects.get(clave=clave_padre, empresa_id=settings.EMPRESA_ID)
+                    if articulo_padre.imagen:
+                        return request.build_absolute_uri(articulo_padre.imagen.url) if request else articulo_padre.imagen.url
+                except Articulos.DoesNotExist:
+                    continue
         
         # Estrategia 2: Buscar artículos con clave similar (sin el último dígito) que tengan imagen
         # Ej: 065.0301 -> buscar 065.030*

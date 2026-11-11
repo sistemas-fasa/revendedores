@@ -108,11 +108,15 @@ def _precios_base_erp():
         return {}
 
     def cargar():
-        raices_variantes = {
-            str(clave).strip()[:7]
-            for clave in Articulos.objects.values_list("clave", flat=True)
-            if len(str(clave).strip()) == 8
-        }
+        # Raíces de variantes: un artículo de 8 era raíz(7)+sufijo(1);
+        # con código ampliado hay variantes de 9: raíz(8)+sufijo(1).
+        # Se guardan todos los prefijos posibles para resolver la fuente.
+        raices_variantes = set()
+        for clave in Articulos.objects.values_list("clave", flat=True):
+            texto = str(clave).strip()
+            for largo in range(7, len(texto)):
+                if len(texto) > 7:
+                    raices_variantes.add(texto[:largo])
         with connections["fasa"].cursor() as cursor:
             cursor.execute(
                 """
@@ -227,7 +231,7 @@ def _precios_base_erp():
                     "descdiscont1": descdiscont1,
                     "descdiscont4": descdiscont4,
                 }
-                formula_activa = len(clave_texto) >= 8 and bool(clave_texto[7])
+                formula_activa = len(clave_texto) > 7 and bool(clave_texto[7:].strip())
                 precio_base_por_lista = _bases_erp_desde_fuente(
                     fuente,
                     formula_activa=formula_activa,
@@ -236,11 +240,9 @@ def _precios_base_erp():
                 datos[str(clave).strip()] = {
                     "bases": precio_base_por_lista,
                     "impuesto": impuesto,
-                    "fuente": (
-                        {**fuente, "impuesto": impuesto}
-                        if clave_texto in raices_variantes
-                        else None
-                    ),
+                    # Se guarda la fuente siempre: una raíz de 7 u 8 puede ser
+                    # antecesora de variantes de 8 o 9 (código ampliado).
+                    "fuente": {**fuente, "impuesto": impuesto},
                 }
             return datos
 
@@ -274,20 +276,26 @@ def calcular_precio_articulo(
         erp_precios = _precios_base_erp()
     clave_articulo = str(articulo.clave).strip()
     erp_datos = erp_precios.get(clave_articulo, {})
-    if not erp_datos.get("bases") and len(clave_articulo) == 8:
-        raiz = erp_precios.get(clave_articulo[:7], {})
-        fuente = raiz.get("fuente")
-        if fuente:
+    if not erp_datos.get("bases") and len(clave_articulo) > 7:
+        # Variante con código ampliado: probar antecesores de largo decreciente
+        # (9 -> 8 -> 7). Ej: 029010651 usa la fuente de 02901065 o de 0290106.
+        for largo in range(len(clave_articulo) - 1, 6, -1):
+            raiz = erp_precios.get(clave_articulo[:largo], {})
+            fuente = raiz.get("fuente")
+            if not fuente:
+                continue
+            sufijo = clave_articulo[largo:]
             bases_variante = _bases_erp_desde_fuente(
                 fuente,
                 formula=getattr(articulo, "formula", ""),
-                formula_activa=bool(clave_articulo[7]),
+                formula_activa=bool(sufijo.strip()),
             )
             if bases_variante:
                 erp_datos = {
                     "bases": bases_variante,
                     "impuesto": fuente.get("impuesto", Decimal("0")),
                 }
+                break
     if impuesto_adicional is None:
         impuesto_adicional = erp_datos.get("impuesto", Decimal("0"))
     else:

@@ -15,8 +15,8 @@ LISTA_CLIENTE = [
 
 class BonificacionCliente(models.Model):
     cliente = models.ForeignKey('Cliente', on_delete=models.CASCADE)
-    desde_articulo = models.CharField(max_length=8, verbose_name="Desde Artículo")
-    hasta_articulo = models.CharField(max_length=8, verbose_name="Hasta Artículo")
+    desde_articulo = models.CharField(max_length=12, verbose_name="Desde Artículo")
+    hasta_articulo = models.CharField(max_length=12, verbose_name="Hasta Artículo")
     bonificacion = models.DecimalField(max_digits=5, decimal_places=2)
 
     class Meta:
@@ -27,8 +27,8 @@ class BonificacionCliente(models.Model):
         return f"Bonificación para {self.cliente.nombre} desde {self.desde_articulo} hasta {self.hasta_articulo}: {self.bonificacion}%"
     
 class Articulos(models.Model):
-    clave = models.CharField(max_length=8, primary_key=True)
-    unidad = models.CharField(max_length=8)
+    clave = models.CharField(max_length=12, primary_key=True)
+    unidad = models.CharField(max_length=12)
     nombre = models.CharField(max_length=50)
     peso = models.DecimalField(max_digits=12, decimal_places=2)
     espesor = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -55,7 +55,7 @@ class Articulos(models.Model):
     stock = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Stock", default=0)
     stock_efectivo = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Stock Efectivo", null=True, blank=True, default=None)
     stock_minimo = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Stock Mínimo", null=True, blank=True, default=None)
-    descuenta_de = models.CharField(max_length=8, verbose_name="Descuenta Stock De", default='', blank=True)
+    descuenta_de = models.CharField(max_length=12, verbose_name="Descuenta Stock De", default='', blank=True)
     formula = models.CharField(max_length=20, verbose_name="Formula", default='')
     descripcion = models.CharField(max_length=100)
     discontinuado = models.CharField(max_length=1, verbose_name="Discontinuado", default='')
@@ -442,8 +442,8 @@ class Factura(models.Model):
     localidad = models.CharField(max_length=4)
     codigo = models.CharField(max_length=2, default='F')
     lista = models.CharField(max_length=1)
-    clave = models.CharField(max_length=8)
-    reparto = models.CharField(max_length=8)
+    clave = models.CharField(max_length=12)
+    reparto = models.CharField(max_length=12)
     comp = models.CharField(max_length=12, default='0')
     regiva = models.CharField(max_length=4)
     idmovi = models.IntegerField(default=0)
@@ -451,7 +451,7 @@ class Factura(models.Model):
     vendedor = models.CharField(max_length=2)
     flete = models.DecimalField(max_digits=12, decimal_places=3, default=0.000)
     nota = models.CharField(max_length=50)
-    unidad = models.CharField(max_length=8)
+    unidad = models.CharField(max_length=12)
     pago = models.CharField(max_length=2, default='00')
     cuotapago = models.IntegerField(default=1)
     fechaven = FechaContableField()
