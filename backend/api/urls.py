@@ -1,5 +1,6 @@
 from django.urls import path, include
 from . import views
+from . import activacion_views
 from . import bot_views
 from . import staff_views
 from rest_framework.routers import DefaultRouter
@@ -36,6 +37,11 @@ urlpatterns = [
     path('whatsapp/webhook/', bot_views.whatsapp_webhook, name='whatsapp-webhook'),
     path('bot/test-chat/', bot_views.test_chat, name='bot-test-chat'),
     path('consultar-precio/', views.consultar_precio, name='consultar_precio'),
+    path('activacion/iniciar/', activacion_views.iniciar, name='activacion-iniciar'),
+    path('activacion/enviar/', activacion_views.enviar, name='activacion-enviar'),
+    path('activacion/reenviar/', activacion_views.reenviar, name='activacion-reenviar'),
+    path('activacion/verificar/', activacion_views.verificar, name='activacion-verificar'),
+    path('activacion/confirmar/', activacion_views.confirmar, name='activacion-confirmar'),
     path('exportar-favoritos/', views.exportar_favoritos, name='exportar_favoritos'),
     path('permiso-descarga-lista/', views.permiso_descarga_lista, name='permiso_descarga_lista'),
     path('dashboard/kpis/', views.dashboard_kpis, name='dashboard_kpis'),

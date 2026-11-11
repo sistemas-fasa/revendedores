@@ -42,50 +42,55 @@ export const useAuthStore = defineStore('auth', () => {
       setUser(userData)
       localStorage.setItem('session_id', sessionId)
 
-      // ✅ Iniciar el keep-alive solo después de login
-      startKeepAlive()
-
-      // Limpiar tracking de vistas por sesión para registrar por cada login
-      try {
-        sessionStorage.removeItem('view_logged_oferta')
-        sessionStorage.removeItem('view_logged_discontinuado')
-      } catch (e) {}
-
-      // Después de tener tokens, consultar conteos (ofertas y discontinuados)
-      const [offersRes, discontinuedRes] = await Promise.allSettled([
-        api.get('/api/articulos/', { params: { oferta: 1, page_size: 1 } }),
-        api.get('/api/articulos/', { params: { discontinuados: 1, page_size: 1 } })
-      ])
-
-      if (offersRes.status === 'fulfilled') {
-        const offersTotal = offersRes.value.data?.count || 0
-        offersCount.value = offersTotal
-        try { sessionStorage.setItem('offers_count', String(offersTotal)) } catch (e) {}
-      } else {
-        console.warn('No se pudo consultar ofertas tras login:', offersRes.reason)
-      }
-
-      if (discontinuedRes.status === 'fulfilled') {
-        const discontinuedTotal = discontinuedRes.value.data?.count || 0
-        discontinuedCount.value = discontinuedTotal
-        try { sessionStorage.setItem('discontinued_count', String(discontinuedTotal)) } catch (e) {}
-      } else {
-        console.warn('No se pudo consultar discontinuados tras login:', discontinuedRes.reason)
-      }
-
-      // Marca de login para disparar el modal cada vez que se loguea
-      lastLoginAt.value = Date.now()
-      try { sessionStorage.setItem('last_login_at', String(lastLoginAt.value)) } catch (e) {}
-
-      // Emitir evento global para notificar que el usuario inició sesión
-      try { window.dispatchEvent(new Event('user-logged-in')) } catch (e) { /* ignore */ }
-
-      router.push('/productos')
+      await afterAuth()
     } catch (error) {
       throw error
     } finally {
       loading.value = false
     }
+  }
+
+  // ✅ Pasos comunes post-autenticación (login normal o activación con OTP).
+  const afterAuth = async () => {
+    // ✅ Iniciar el keep-alive solo después de login
+    startKeepAlive()
+
+    // Limpiar tracking de vistas por sesión para registrar por cada login
+    try {
+      sessionStorage.removeItem('view_logged_oferta')
+      sessionStorage.removeItem('view_logged_discontinuado')
+    } catch (e) {}
+
+    // Después de tener tokens, consultar conteos (ofertas y discontinuados)
+    const [offersRes, discontinuedRes] = await Promise.allSettled([
+      api.get('/api/articulos/', { params: { oferta: 1, page_size: 1 } }),
+      api.get('/api/articulos/', { params: { discontinuados: 1, page_size: 1 } })
+    ])
+
+    if (offersRes.status === 'fulfilled') {
+      const offersTotal = offersRes.value.data?.count || 0
+      offersCount.value = offersTotal
+      try { sessionStorage.setItem('offers_count', String(offersTotal)) } catch (e) {}
+    } else {
+      console.warn('No se pudo consultar ofertas tras login:', offersRes.reason)
+    }
+
+    if (discontinuedRes.status === 'fulfilled') {
+      const discontinuedTotal = discontinuedRes.value.data?.count || 0
+      discontinuedCount.value = discontinuedTotal
+      try { sessionStorage.setItem('discontinued_count', String(discontinuedTotal)) } catch (e) {}
+    } else {
+      console.warn('No se pudo consultar discontinuados tras login:', discontinuedRes.reason)
+    }
+
+    // Marca de login para disparar el modal cada vez que se loguea
+    lastLoginAt.value = Date.now()
+    try { sessionStorage.setItem('last_login_at', String(lastLoginAt.value)) } catch (e) {}
+
+    // Emitir evento global para notificar que el usuario inició sesión
+    try { window.dispatchEvent(new Event('user-logged-in')) } catch (e) { /* ignore */ }
+
+    router.push('/productos')
   }
 
   // ✅ Acción: logout
@@ -153,6 +158,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('refresh_token', refresh)
   }
 
+  // ✅ Aplica una sesión obtenida fuera del login clásico (ej: confirmar OTP).
+  const applySession = async (data) => {
+    setTokens(data.access, data.refresh)
+    setUser(data.user)
+    localStorage.setItem('session_id', data.session_id)
+    await afterAuth()
+  }
+
   // Función para inicializar desde localStorage
   const initializeFromStorage = () => {
     const savedUser = localStorage.getItem('user')
@@ -196,6 +209,7 @@ export const useAuthStore = defineStore('auth', () => {
     isStaff,
     login,
     logout,
+    applySession,
     setUser,
     setTokens,
     initializeFromStorage,
