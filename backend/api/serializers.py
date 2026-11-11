@@ -7,6 +7,7 @@ from rest_framework import status
 # app/serializers/base_serializers.py
 
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 from django.db.models import Count
 
 from .models import Articulos, Cliente, FormaPago, Favorito, ArticuloDestacado, ArticuloOculto, Busqueda, Pedido, PedidoItem, ExportEvent
@@ -226,8 +227,30 @@ class CookieTokenRefreshView(TokenRefreshView):
         return response
         
 
+class ActivacionPendiente(APIException):
+    """La cuenta existe pero aún no tiene contraseña (login con código de cliente)."""
+
+    status_code = 409
+    default_detail = {
+        'code': 'activacion_pendiente',
+        'message': 'Esta cuenta aún no tiene contraseña. Activala con tu código de cliente.',
+    }
+    default_code = 'activacion_pendiente'
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
+        ingresado = (attrs.get('username') or '').strip()
+        if ingresado:
+            # Login dual: aceptar numero_cliente (ej "40" o "00040") además del username.
+            from .erp_clientes import normalizar_codigo
+            numero = normalizar_codigo(ingresado)
+            if numero is not None:
+                cliente = Cliente.objects.select_related('user').filter(numero_cliente=numero).first()
+                if cliente is not None:
+                    if not cliente.user.has_usable_password():
+                        raise ActivacionPendiente()
+                    attrs['username'] = cliente.user.username
         # Primero, autenticar y obtener los tokens (como hace el padre)
         data = super().validate(attrs)
 

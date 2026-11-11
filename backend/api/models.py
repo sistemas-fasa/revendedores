@@ -129,6 +129,8 @@ class Cliente(models.Model):
     cuit = models.CharField(max_length=13, blank=True, null=True)
     direccion = models.CharField(max_length=200, blank=True)
     puede_descargar_lista = models.BooleanField(default=False)
+    whatsapp = models.CharField(max_length=15, blank=True, default='', verbose_name='WhatsApp')
+    whatsapp_verificado = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         """Formatea el numero_cliente con ceros a la izquierda (00040)."""
@@ -141,7 +143,70 @@ class Cliente(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.numero_cliente} - {self.user.get_full_name() or self.user.username}"        
+        return f"{self.numero_cliente} - {self.user.get_full_name() or self.user.username}"
+
+
+class ActivacionOTP(models.Model):
+    """Código de única vez para activar la cuenta (login con código de cliente).
+
+    El código en texto plano JAMÁS se persiste: solo su hash SHA-256 + salt.
+    Ver docs/specs/activacion-cuenta-otp.md.
+    """
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='otps_activacion')
+    codigo_hash = models.CharField(max_length=64)
+    salt = models.CharField(max_length=32)
+    expira_at = models.DateTimeField(db_index=True)
+    intentos = models.PositiveIntegerField(default=0)
+    ultimo_envio_at = models.DateTimeField(null=True, blank=True)
+    canal_email_estado = models.CharField(max_length=12, default='PENDIENTE')
+    canal_whatsapp_estado = models.CharField(max_length=12, default='PENDIENTE')
+    whatsapp_message_id = models.CharField(max_length=100, blank=True, default='')
+    consumido_at = models.DateTimeField(null=True, blank=True)
+    creado_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'OTP de activación'
+        verbose_name_plural = 'OTPs de activación'
+        ordering = ['-creado_at']
+        indexes = [
+            models.Index(fields=['cliente', 'expira_at']),
+        ]
+
+    def __str__(self):
+        return f"OTP {self.cliente.numero_cliente} (expira {self.expira_at:%Y-%m-%d %H:%M})"
+
+
+class EmailPendiente(models.Model):
+    """Fila de la cola centralizada de emails (base `fe`, tabla `emails_pendientes`).
+
+    La manda el servidor genera-fe-2025. El portal solo encola (estado
+    'pendiente'). Tabla no gestionada por Django: sin migración.
+    """
+
+    destinatario = models.CharField(max_length=255)
+    quien_envia = models.CharField(max_length=255, null=True, blank=True)
+    cc = models.CharField(max_length=500, null=True, blank=True)
+    cco = models.CharField(max_length=500, null=True, blank=True)
+    asunto = models.CharField(max_length=255)
+    cuerpo_html = models.TextField(null=True, blank=True)
+    cuerpo_texto = models.TextField(null=True, blank=True)
+    adjunto_ruta = models.CharField(max_length=512, null=True, blank=True)
+    adjunto_nombre = models.CharField(max_length=255, null=True, blank=True)
+    intentos = models.IntegerField(default=0)
+    estado = models.CharField(max_length=20, default='pendiente')
+    procesando_desde = models.DateTimeField(null=True, blank=True)
+    ultimo_error = models.TextField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    enviado_en = models.DateTimeField(null=True, blank=True)
+    empresa_id = models.IntegerField(default=1)
+
+    class Meta:
+        managed = False
+        db_table = 'emails_pendientes'
+
+    def __str__(self):
+        return f"{self.destinatario} - {self.asunto[:40]} ({self.estado})"        
 
 class Favorito(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favoritos')

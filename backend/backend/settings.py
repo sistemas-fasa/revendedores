@@ -105,8 +105,22 @@ DATABASES = {
         'PASSWORD': config('FASA_DB_PASSWORD'),
         'HOST': config('FASA_DB_HOST', default=config('DB_HOST')),
         'PORT': config('FASA_DB_PORT', default=config('DB_PORT')),
-    }
+    },
 }
+
+# Base `fe` (factura electrónica): cola centralizada de emails.
+# El portal NO envía SMTP directo; encola en fe.emails_pendientes y lo
+# manda el servidor genera-fe-2025. Ver docs/specs/activacion-cuenta-otp.md.
+# En CI/test esta alias no existe: el envío cae al fallback SMTP de Django.
+if config('FE_DB_NAME', default=''):
+    DATABASES['fe'] = {
+        'ENGINE': config('FE_DB_ENGINE', default='django.db.backends.mysql'),
+        'NAME': config('FE_DB_NAME'),
+        'USER': config('FE_DB_USER'),
+        'PASSWORD': config('FE_DB_PASSWORD'),
+        'HOST': config('FE_DB_HOST', default=''),
+        'PORT': config('FE_DB_PORT', default='3306'),
+    }
 
 
 # Password validation
@@ -236,6 +250,27 @@ WHATSAPP_VERIFY_TOKEN = config('WHATSAPP_VERIFY_TOKEN', default='')
 WHATSAPP_ACCESS_TOKEN = config('WHATSAPP_ACCESS_TOKEN', default='')
 WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='')
 WHATSAPP_BOT_USERNAME = config('WHATSAPP_BOT_USERNAME', default='')
+
+# Vogel WhatsApp API (gateway central, usado para OTP de activación).
+# Ver docs/specs/activacion-cuenta-otp.md y docs de integración del gateway.
+WHATSAPP_ENABLED = config('WHATSAPP_ENABLED', default=False, cast=bool)
+WHATSAPP_API_URL = config('WHATSAPP_API_URL', default='https://whatsapp.vogelconsultoria.com.ar')
+WHATSAPP_API_KEY = config('WHATSAPP_API_KEY', default='')
+WHATSAPP_INSTANCE_ID = config('WHATSAPP_INSTANCE_ID', default='default')
+WHATSAPP_API_TIMEOUT = config('WHATSAPP_API_TIMEOUT', default=15, cast=int)
+
+# Activación de cuenta con OTP (código de cliente -> email + WhatsApp).
+ACTIVACION_OTP_LONGITUD = config('ACTIVACION_OTP_LONGITUD', default=6, cast=int)
+ACTIVACION_OTP_EXPIRA_SEG = config('ACTIVACION_OTP_EXPIRA_SEG', default=600, cast=int)
+ACTIVACION_OTP_MAX_INTENTOS = config('ACTIVACION_OTP_MAX_INTENTOS', default=5, cast=int)
+ACTIVACION_OTP_REENVIO_COOLDOWN_SEG = config('ACTIVACION_OTP_REENVIO_COOLDOWN_SEG', default=60, cast=int)
+# Email del OTP por cola centralizada fe.emails_pendientes (empresa 1 =
+# Ferretería Avenida, la manda genera-fe-2025). Si la cola no está
+# disponible, cae a SMTP directo de Django.
+ACTIVACION_EMAIL_VIA_COLA = config('ACTIVACION_EMAIL_VIA_COLA', default=True, cast=bool)
+ACTIVACION_EMAIL_EMPRESA_ID = config('ACTIVACION_EMAIL_EMPRESA_ID', default=1, cast=int)
+ACTIVACION_EMAIL_QUIEN_ENVIA = config(
+    'ACTIVACION_EMAIL_QUIEN_ENVIA', default='ventas@ferreteriaavenida.com.ar')
 BOT_AGENT_ENABLED = config('BOT_AGENT_ENABLED', default=False, cast=bool)
 BOT_AGENT_TEST_CHAT_ENABLED = config('BOT_AGENT_TEST_CHAT_ENABLED', default=False, cast=bool)
 

@@ -21,8 +21,8 @@
         </div>
         <form @submit.prevent="handleSubmit">
           <div class="field">
-            <label for="username">Usuario</label>
-            <input id="username" v-model="username" name="username" type="text" autocomplete="username" required placeholder="Ingresá tu usuario" />
+            <label for="username">Usuario o código de cliente</label>
+            <input id="username" v-model="username" name="username" type="text" autocomplete="username" required placeholder="Tu usuario o el código de tu factura" />
           </div>
           <div class="field">
             <label for="password">Contraseña</label>
@@ -69,6 +69,91 @@
             <div v-if="recoveryError" class="error-message" role="alert">{{ recoveryError }}</div>
           </div>
         </form>
+        <div class="activation-toggle">
+          <button type="button" class="link-button" @click="abrirActivacion()">
+            ¿Primera vez? Activá tu cuenta
+          </button>
+        </div>
+
+        <div v-if="showActivation" class="activation-panel" role="dialog" aria-label="Activar cuenta">
+          <p class="activation-steps">Paso {{ actPaso }} de 3</p>
+          <h3 v-if="actPaso === 1">Activá tu cuenta</h3>
+          <h3 v-if="actPaso === 2">Verificá que sos vos</h3>
+          <h3 v-if="actPaso === 3">Creá tu contraseña</h3>
+
+          <div v-if="actPaso === 1">
+            <p class="activation-help">Ingresá el código de cliente de tu factura. Te pediremos tu email y WhatsApp para enviarte un código de verificación.</p>
+            <div class="field">
+              <label for="act-codigo">Código de cliente</label>
+              <input id="act-codigo" v-model="actCodigo" type="text" inputmode="numeric" placeholder="Ej: 40" />
+            </div>
+          </div>
+
+          <div v-if="actPaso === 2">
+            <p class="activation-help">Hola, <strong>{{ actNombre }}</strong>. Te enviamos el mismo código por email<span v-if="actEmailMask"> ({{ actEmailMask }})</span> y WhatsApp<span v-if="actWhatsappMask"> ({{ actWhatsappMask }})</span>.</p>
+            <div v-if="!actEnviado">
+              <div class="field">
+                <label for="act-email">Email</label>
+                <input id="act-email" v-model="actEmail" type="email" autocomplete="email" placeholder="tu@email.com" />
+              </div>
+              <div class="field">
+                <label for="act-wpp">WhatsApp (móvil argentino)</label>
+                <input id="act-wpp" v-model="actWhatsapp" type="tel" autocomplete="tel" placeholder="11-1234-5678" />
+              </div>
+            </div>
+            <div v-else>
+              <div class="field">
+                <label for="act-otp">Código de verificación</label>
+                <input id="act-otp" v-model="actOtp" type="text" inputmode="numeric" maxlength="6" placeholder="6 dígitos" />
+              </div>
+              <p v-if="actCanales.whatsapp === 'omitido'" class="activation-help">WhatsApp no disponible: revisá tu email.</p>
+            </div>
+          </div>
+
+          <div v-if="actPaso === 3">
+            <p class="activation-help">Código correcto. Creá tu contraseña para entrar al portal.</p>
+            <div class="field">
+              <label for="act-p1">Nueva contraseña</label>
+              <input id="act-p1" v-model="actPassword1" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
+            </div>
+            <div class="field">
+              <label for="act-p2">Repetí la contraseña</label>
+              <input id="act-p2" v-model="actPassword2" type="password" autocomplete="new-password" placeholder="Igual que arriba" />
+            </div>
+          </div>
+
+          <div v-if="actError" class="error-message" role="alert">{{ actError }}</div>
+          <div v-if="actMsg" class="success-message" role="status">{{ actMsg }}</div>
+
+          <div class="activation-actions">
+            <button
+              v-if="actPaso === 1"
+              type="button" class="submit-button" :disabled="actLoading"
+              @click="actIniciar"
+            ><span>{{ actLoading ? 'Buscando...' : 'Continuar' }}</span></button>
+            <button
+              v-if="actPaso === 2 && !actEnviado"
+              type="button" class="submit-button" :disabled="actLoading"
+              @click="actEnviar"
+            ><span>{{ actLoading ? 'Enviando...' : 'Enviarme el código' }}</span></button>
+            <button
+              v-if="actPaso === 2 && actEnviado"
+              type="button" class="submit-button" :disabled="actLoading"
+              @click="actVerificar"
+            ><span>{{ actLoading ? 'Verificando...' : 'Verificar código' }}</span></button>
+            <button
+              v-if="actPaso === 3"
+              type="button" class="submit-button" :disabled="actLoading"
+              @click="actConfirmar"
+            ><span>{{ actLoading ? 'Creando...' : 'Crear contraseña e ingresar' }}</span></button>
+            <button
+              v-if="actPaso === 2 && actEnviado"
+              type="button" class="link-button" :disabled="actLoading"
+              @click="actReenviar"
+            >Reenviar código</button>
+            <button type="button" class="link-button" @click="cerrarActivacion()">Volver al ingreso</button>
+          </div>
+        </div>
         <p class="form-footer">Ferretería Avenida <span>·</span> Portal de ventas</p>
       </div>
     </section>
@@ -93,6 +178,154 @@ const recoveryMsg = ref('')
 const recoveryError = ref('')
 const recoveryLoading = ref(false)
 
+// --- Activación con código de cliente + OTP ---
+const showActivation = ref(false)
+const actPaso = ref(1)
+const actCodigo = ref('')
+const actNombre = ref('')
+const actEmailMask = ref('')
+const actWhatsappMask = ref('')
+const actEmail = ref('')
+const actWhatsapp = ref('')
+const actEnviado = ref(false)
+const actCanales = ref({})
+const actOtp = ref('')
+const actPassword1 = ref('')
+const actPassword2 = ref('')
+const actError = ref('')
+const actMsg = ref('')
+const actLoading = ref(false)
+
+const actApiError = (err, fallback) => {
+  actError.value = err.response?.data?.error || fallback
+}
+
+const abrirActivacion = (codigo = '') => {
+  showActivation.value = true
+  actPaso.value = 1
+  actError.value = ''
+  actMsg.value = ''
+  actEnviado.value = false
+  actCanales.value = {}
+  actOtp.value = ''
+  actPassword1.value = ''
+  actPassword2.value = ''
+  if (codigo) actCodigo.value = codigo
+}
+
+const cerrarActivacion = () => {
+  showActivation.value = false
+  actError.value = ''
+  actMsg.value = ''
+}
+
+const actIniciar = async () => {
+  actError.value = ''
+  actMsg.value = ''
+  if (!actCodigo.value.trim()) {
+    actError.value = 'Ingresá tu código de cliente.'
+    return
+  }
+  actLoading.value = true
+  try {
+    const { data } = await api.post('/api/activacion/iniciar/', { codigo_cliente: actCodigo.value.trim() })
+    actNombre.value = data.nombre
+    actEmailMask.value = data.email_enmascarado
+    actWhatsappMask.value = data.whatsapp_enmascarado
+    actPaso.value = 2
+  } catch (err) {
+    if (err.response?.status === 409 && err.response?.data?.code === 'ya_activa') {
+      actError.value = 'Esta cuenta ya tiene contraseña. Ingresá con tu usuario o código y tu clave.'
+    } else {
+      actApiError(err, 'No pudimos validar el código. Intentá más tarde.')
+    }
+  } finally {
+    actLoading.value = false
+  }
+}
+
+const actEnviar = async () => {
+  actError.value = ''
+  actMsg.value = ''
+  actLoading.value = true
+  try {
+    const { data } = await api.post('/api/activacion/enviar/', {
+      codigo_cliente: actCodigo.value.trim(),
+      email: actEmail.value.trim(),
+      whatsapp: actWhatsapp.value.trim(),
+    })
+    actEnviado.value = true
+    actCanales.value = data.canales || {}
+    actMsg.value = data.canales?.whatsapp === 'omitido'
+      ? 'Te enviamos el código por email. Revisá tu casilla (y spam).'
+      : 'Te enviamos el código por email y WhatsApp. Revisá ambos.'
+  } catch (err) {
+    if (err.response?.status === 429) {
+      actError.value = err.response.data?.error || 'Esperá antes de pedir otro código.'
+    } else {
+      actApiError(err, 'No pudimos enviar el código. Intentá más tarde.')
+    }
+  } finally {
+    actLoading.value = false
+  }
+}
+
+const actReenviar = async () => {
+  actError.value = ''
+  actMsg.value = ''
+  actLoading.value = true
+  try {
+    const { data } = await api.post('/api/activacion/reenviar/', {
+      codigo_cliente: actCodigo.value.trim(),
+    })
+    actCanales.value = data.canales || {}
+    actMsg.value = 'Te enviamos un código nuevo.'
+  } catch (err) {
+    actApiError(err, 'No pudimos reenviar el código. Intentá más tarde.')
+  } finally {
+    actLoading.value = false
+  }
+}
+
+const actVerificar = async () => {
+  actError.value = ''
+  actMsg.value = ''
+  if (!actOtp.value.trim()) {
+    actError.value = 'Ingresá el código de 6 dígitos.'
+    return
+  }
+  actLoading.value = true
+  try {
+    await api.post('/api/activacion/verificar/', {
+      codigo_cliente: actCodigo.value.trim(),
+      otp: actOtp.value.trim(),
+    })
+    actPaso.value = 3
+  } catch (err) {
+    actApiError(err, 'No pudimos verificar el código. Intentá más tarde.')
+  } finally {
+    actLoading.value = false
+  }
+}
+
+const actConfirmar = async () => {
+  actError.value = ''
+  actMsg.value = ''
+  actLoading.value = true
+  try {
+    const { data } = await api.post('/api/activacion/confirmar/', {
+      codigo_cliente: actCodigo.value.trim(),
+      otp: actOtp.value.trim(),
+      password1: actPassword1.value,
+      password2: actPassword2.value,
+    })
+    await authStore.applySession(data)
+  } catch (err) {
+    actApiError(err, 'No pudimos crear la contraseña. Intentá más tarde.')
+    actLoading.value = false
+  }
+}
+
 const handleSubmit = async () => {
   error.value = ''
   loading.value = true
@@ -101,6 +334,9 @@ const handleSubmit = async () => {
   } catch (err) {
     if (err.response?.status === 401) {
       error.value = 'Usuario o contraseña incorrectos.'
+    } else if (err.response?.status === 409 && err.response?.data?.code === 'activacion_pendiente') {
+      error.value = 'Esta cuenta aún no tiene contraseña. Activala con tu código de cliente.'
+      abrirActivacion(username.value)
     } else {
       error.value = 'No se pudo conectar con el servidor. Intenta más tarde.'
     }
@@ -170,21 +406,17 @@ form { margin-top: 44px; }
 .submit-button:disabled { opacity: .7; cursor: wait; }
 .spinner { width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
 .error-message { margin-top: 4px; padding: 13px 15px; border: 1px solid #f1c3c9; border-radius: 8px; background: #fff1f2; color: #a90016; font-size: 14px; line-height: 1.4; }
-.recovery-toggle { margin-top: 20px; text-align: center; }
-.link-button { border: 0; background: none; padding: 4px; color: #b90018; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
-.link-button:hover { text-decoration: underline; }
-.link-button:focus-visible, .secondary-button:focus-visible { outline: 3px solid #ec8390; outline-offset: 3px; }
-.recovery-panel { margin-top: 16px; padding: 18px; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; }
-.recovery-panel > p { margin: 0 0 12px; color: #707988; font-size: 14px; line-height: 1.5; }
-.recovery-row { display: flex; gap: 10px; }
-.recovery-row input { flex: 1; min-width: 0; height: 48px; box-sizing: border-box; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; color: #202735; font: inherit; font-size: 14px; padding: 0 14px; }
-.recovery-row input::placeholder { color: #a2a9b3; }
-.recovery-row input:focus { outline: none; border-color: #be001a; box-shadow: 0 0 0 3px rgba(190,0,26,.12); }
-.secondary-button { border: 0; border-radius: 8px; background: #313b49; color: #fff; font: inherit; font-size: 14px; font-weight: 700; padding: 0 18px; cursor: pointer; white-space: nowrap; }
-.secondary-button:hover:not(:disabled) { background: #202735; }
-.secondary-button:disabled { opacity: .7; cursor: wait; }
-.success-message { margin-top: 12px; padding: 13px 15px; border: 1px solid #bfe3c9; border-radius: 8px; background: #eef9f0; color: #166534; font-size: 14px; line-height: 1.4; }
 .recovery-panel .error-message { margin-top: 12px; }
+.activation-toggle { margin-top: 20px; text-align: center; }
+.activation-panel { margin-top: 16px; padding: 18px; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; }
+.activation-panel h3 { margin: 6px 0 4px; font-size: 19px; letter-spacing: -.02em; }
+.activation-steps { margin: 0; color: #b90018; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.activation-help { margin: 0 0 14px; color: #707988; font-size: 14px; line-height: 1.5; }
+.activation-panel .field input { height: 52px; }
+.activation-panel .submit-button { margin-top: 14px; }
+.activation-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.activation-actions .link-button { align-self: center; }
+.activation-panel .success-message { margin-top: 12px; }
 .form-footer { margin: 55px 0 0; color: #929aa5; font-size: 12px; }
 .form-footer span { padding: 0 5px; color: #c5001a; }
 @keyframes spin { to { transform: rotate(360deg); } }
