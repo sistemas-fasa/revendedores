@@ -271,6 +271,13 @@ ACTIVACION_EMAIL_VIA_COLA = config('ACTIVACION_EMAIL_VIA_COLA', default=True, ca
 ACTIVACION_EMAIL_EMPRESA_ID = config('ACTIVACION_EMAIL_EMPRESA_ID', default=1, cast=int)
 ACTIVACION_EMAIL_QUIEN_ENVIA = config(
     'ACTIVACION_EMAIL_QUIEN_ENVIA', default='ventas@ferreteriaavenida.com.ar')
+# Defaults para el alta automática (código válido en ERP sin ficha local).
+# Deben existir en las tablas del portal; si falta alguno, el alta se
+# rechaza con `requiere_alta` en vez de crear datos inválidos.
+ACTIVACION_DEFAULT_LISTA_PRECIO = config('ACTIVACION_DEFAULT_LISTA_PRECIO', default='1')
+ACTIVACION_DEFAULT_LOCALIDAD = config('ACTIVACION_DEFAULT_LOCALIDAD', default='0001')
+ACTIVACION_DEFAULT_CONDICION_PAGO = config('ACTIVACION_DEFAULT_CONDICION_PAGO', default='00')
+ACTIVACION_DEFAULT_TIPO_IVA = config('ACTIVACION_DEFAULT_TIPO_IVA', default='F')
 BOT_AGENT_ENABLED = config('BOT_AGENT_ENABLED', default=False, cast=bool)
 BOT_AGENT_TEST_CHAT_ENABLED = config('BOT_AGENT_TEST_CHAT_ENABLED', default=False, cast=bool)
 

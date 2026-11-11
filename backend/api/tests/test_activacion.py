@@ -280,3 +280,75 @@ class ColaEmailTests(TestCase):
             self.assertEqual(resp.data['canales']['email'], 'ok')
             self.assertEqual(len(mail.outbox), 1)
             self.assertIn('c@mail.com', mail.outbox[0].to)
+
+
+from unittest import mock
+
+ERP_SIN_FICHA = {
+    'existe': True,
+    'nombre': 'Cliente Nuevo',
+    'cliente': None,
+    'fuente': 'facturas',
+    'factura': {'nombre': 'Cliente Nuevo', 'lista': '1', 'localidad': '9999',
+                'pago': '99', 'regiva': ''},
+}
+
+
+class AltaAutomaticaTests(TestCase):
+    def setUp(self):
+        mail.outbox.clear()
+        self.api = APIClient()
+
+    def _necesarios(self):
+        loc, _ = Localidades.objects.get_or_create(codigo='9999', defaults={'nombre': 'Prueba'})
+        pago, _ = FormaPago.objects.get_or_create(
+            id='99', defaults={'nombre': 'Contado', 'descuento': 0, 'punitorio': 0})
+        return loc, pago
+
+    @mock.patch('api.activacion_views.resolver_codigo')
+    def test_iniciar_autocrea_ficha(self, mock_resolver):
+        self._necesarios()
+        mock_resolver.return_value = dict(ERP_SIN_FICHA)
+        resp = self.api.post('/api/activacion/iniciar/', {'codigo_cliente': '24458'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['numero_cliente'], '24458')
+        cliente = Cliente.objects.get(numero_cliente='24458')
+        self.assertTrue(cliente.alta_automatica)
+        self.assertFalse(cliente.user.has_usable_password())
+
+    @mock.patch('api.activacion_views.resolver_codigo')
+    def test_iniciar_autocreado_sigue_a_enviar(self, mock_resolver):
+        self._necesarios()
+        mock_resolver.return_value = dict(ERP_SIN_FICHA)
+        self.api.post('/api/activacion/iniciar/', {'codigo_cliente': '24458'}, format='json')
+        with self.settings(ACTIVACION_EMAIL_VIA_COLA=False, WHATSAPP_ENABLED=False):
+            resp = self.api.post('/api/activacion/enviar/', {
+                'codigo_cliente': '24458', 'email': 'n@mail.com',
+                'whatsapp': '11-1234-5678'}, format='json')
+        self.assertEqual(resp.status_code, 202)
+        self.assertEqual(Cliente.objects.get(numero_cliente='24458').whatsapp, '5491112345678')
+
+    @mock.patch('api.activacion_views.resolver_codigo')
+    def test_autocrea_falla_sin_defaults(self, mock_resolver):
+        mock_resolver.return_value = dict(
+            ERP_SIN_FICHA,
+            factura={'nombre': 'X', 'lista': '', 'localidad': 'XXXX', 'pago': 'YY', 'regiva': ''},
+        )
+        with self.settings(ACTIVACION_DEFAULT_LOCALIDAD='XXXX',
+                           ACTIVACION_DEFAULT_CONDICION_PAGO='YY'):
+            resp = self.api.post('/api/activacion/iniciar/', {'codigo_cliente': '24458'}, format='json')
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.data['code'], 'requiere_alta')
+        self.assertFalse(Cliente.objects.filter(numero_cliente='24458').exists())
+
+    @mock.patch('api.activacion_views.resolver_codigo')
+    def test_no_duplica_si_ya_existe_user_sin_password(self, mock_resolver):
+        self._necesarios()
+        user = User.objects.create(username='24458')
+        user.set_unusable_password()
+        user.save()
+        mock_resolver.return_value = dict(ERP_SIN_FICHA)
+        resp = self.api.post('/api/activacion/iniciar/', {'codigo_cliente': '24458'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(User.objects.filter(username='24458').count(), 1)
+        self.assertTrue(Cliente.objects.filter(numero_cliente='24458').exists())

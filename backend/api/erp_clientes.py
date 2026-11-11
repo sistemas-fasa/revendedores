@@ -43,7 +43,9 @@ def resolver_codigo(codigo):
             'fuente': 'local',
         }
 
-    # Fallback: el código tuvo movimientos facturados (nombre del último).
+    # Fallback: el código tuvo movimientos facturados. Trae los datos de la
+    # última factura para un posible alta automática (hilo del ERP: reemplazar
+    # por la tabla maestra fasa.clientes cuando esté disponible).
     try:
         from .models import Factura
         alias = getattr(settings, 'ACCOUNTING_DB_ALIAS', 'default')
@@ -51,7 +53,7 @@ def resolver_codigo(codigo):
             Factura.objects.using(alias)
             .filter(cliente=numero)
             .order_by('-fecha')
-            .values('nombre')
+            .values('nombre', 'lista', 'localidad', 'pago', 'regiva')
             .first()
         )
     except Exception:
@@ -64,4 +66,5 @@ def resolver_codigo(codigo):
         'nombre': (factura.get('nombre') or '').strip() or numero,
         'cliente': None,
         'fuente': 'facturas',
+        'factura': factura,
     }

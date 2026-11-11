@@ -93,7 +93,15 @@ Permitir que un cliente se loguee con su **código de cliente** (impreso en la f
 2. Si el `Cliente` local no existe y el ERP lo confirma, autocrear `User(username=numero_cliente, usable_password=False)` + `Cliente(numero_cliente, nombre=ERP, valores por defecto de lista_pago/localidad a definir con Ventas)`.
 3. El flujo OTP **no avanza** sin `existe=True` del contrato (evita crear cuentas basura).
 
-**Recomendación:** no consultar más datos FASA en este hilo. El contrato queda fijo acá y el hilo del ERP lo implementa contra la DB real (incluida la verificación con un código de factura real y el conteo de `Cliente` sin `User` activo).
+### Autocreación (self-service)
+
+Si el código es válido en el ERP pero no tiene ficha local, `iniciar`/`enviar`
+la crean sola (`_alta_automatica`): `User(username=codigo, usable=False)` +
+`Cliente` con nombre/lista/localidad/pago de la última factura y defaults
+(`ACTIVACION_DEFAULT_*`, hoy: lista `1`, localidad `0001`, pago `00`, IVA `F`).
+Si falta algún default, no inventa nada: `409 requiere_alta`.
+La ficha queda marcada `alta_automatica=True` para que Ventas la revise.
+Verificado con código real 24458 (2026-11-11).
 
 ## Email: cola centralizada (no SMTP directo)
 

@@ -131,6 +131,9 @@ class Cliente(models.Model):
     puede_descargar_lista = models.BooleanField(default=False)
     whatsapp = models.CharField(max_length=15, blank=True, default='', verbose_name='WhatsApp')
     whatsapp_verificado = models.BooleanField(default=False)
+    alta_automatica = models.BooleanField(
+        default=False,
+        help_text='Ficha creada por auto-alta del portal (revisar datos en Ventas).')
 
     def save(self, *args, **kwargs):
         """Formatea el numero_cliente con ceros a la izquierda (00040)."""

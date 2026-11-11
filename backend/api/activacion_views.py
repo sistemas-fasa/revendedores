@@ -210,6 +210,90 @@ def _validar_otp(cliente, otp):
     return registro, None
 
 
+def _alta_automatica(numero, resuelto):
+    """Crea User + Cliente para un código válido en ERP sin ficha local.
+
+    Usa datos de la factura + defaults configurados. Devuelve el Cliente
+    o None si falta algún default (no crea datos inválidos).
+    """
+    from django.contrib.auth import get_user_model
+    from .models import Cliente, FormaPago, Localidades
+
+    User = get_user_model()
+    existente = Cliente.objects.filter(
+        numero_cliente=numero).select_related('user').first()
+    if existente is not None:
+        return existente  # Doble submit o alta concurrente: se adopta.
+    factura = resuelto.get('factura') or {}
+    nombre = (resuelto.get('nombre') or numero).strip()[:100]
+
+    lista = (factura.get('lista') or '').strip()
+    if lista not in ('1', '4'):
+        lista = getattr(settings, 'ACTIVACION_DEFAULT_LISTA_PRECIO', '1')
+
+    loc_codigo = (factura.get('localidad') or '').strip() or getattr(
+        settings, 'ACTIVACION_DEFAULT_LOCALIDAD', '0001')
+    localidad = Localidades.objects.filter(codigo=loc_codigo).first()
+    if localidad is None:
+        localidad = Localidades.objects.filter(
+            codigo=getattr(settings, 'ACTIVACION_DEFAULT_LOCALIDAD', '0001')).first()
+    pago_id = (factura.get('pago') or '').strip() or getattr(
+        settings, 'ACTIVACION_DEFAULT_CONDICION_PAGO', '00')
+    condicion = FormaPago.objects.filter(id=pago_id).first()
+    if condicion is None:
+        condicion = FormaPago.objects.filter(
+            id=getattr(settings, 'ACTIVACION_DEFAULT_CONDICION_PAGO', '00')).first()
+
+    tipos_validos = {c for c, _ in Cliente.TIPO_RESPONSABILIDAD_IVA}
+    tipo_iva = getattr(settings, 'ACTIVACION_DEFAULT_TIPO_IVA', 'F')
+    if tipo_iva not in tipos_validos:
+        tipo_iva = 'F'
+
+    if localidad is None or condicion is None:
+        logger.error('Alta automática %s imposible: faltan defaults (loc=%s pago=%s)',
+                     numero, loc_codigo, pago_id)
+        return None
+
+    usuario, creado = User.objects.get_or_create(
+        username=numero,
+        defaults={'first_name': nombre[:30], 'is_active': True},
+    )
+    if not creado and usuario.has_usable_password():
+        return None
+    if not creado and not usuario.has_usable_password():
+        pass  # User huérfano sin Cliente: lo adoptamos.
+    usuario.set_unusable_password()
+    usuario.save()
+
+    cliente = Cliente.objects.create(
+        user=usuario,
+        numero_cliente=numero,
+        lista_precio=lista,
+        nombre=nombre,
+        codigo_localidad=localidad,
+        condicion_pago=condicion,
+        tipo_responsable_iva=tipo_iva,
+        alta_automatica=True,
+    )
+    logger.info('Alta automática de cliente %s (fuente %s)', numero, resuelto.get('fuente'))
+    return cliente
+
+
+def _cliente_para_activar(numero):
+    """Devuelve (cliente, error_code). Intenta alta automática si falta ficha."""
+    resuelto = resolver_codigo(numero)
+    if resuelto is None:
+        return None, 'inexistente'
+    cliente = resuelto['cliente']
+    if cliente is None:
+        cliente = _alta_automatica(numero, resuelto)
+    if cliente is None:
+        return None, 'requiere_alta'
+    if cliente.user.has_usable_password():
+        return None, 'ya_activa'
+    return cliente, None
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([ActivacionRateThrottle])
@@ -220,22 +304,21 @@ def iniciar(request):
             {'error': 'Ingresá tu código de cliente (solo números, como figura en la factura).'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    resuelto = resolver_codigo(numero)
-    if resuelto is None:
+    cliente, error = _cliente_para_activar(numero)
+    if error == 'inexistente':
         logger.info('Activación: código inexistente %s', numero)
         return Response(
             {'error': 'No encontramos ese código de cliente. Verificá el número de tu factura o pedí el alta a Ventas.'},
             status=status.HTTP_404_NOT_FOUND,
         )
-    cliente = resuelto['cliente']
-    if cliente is None:
-        logger.info('Activación: código %s válido en ERP pero sin ficha local', numero)
+    if error == 'requiere_alta':
+        logger.info('Activación: código %s válido en ERP pero sin ficha local (faltan defaults)', numero)
         return Response(
             {'error': 'Tu código es válido pero tu ficha aún no está creada. Pedí el alta a Ventas.',
              'code': 'requiere_alta'},
             status=status.HTTP_409_CONFLICT,
         )
-    if cliente.user.has_usable_password():
+    if error == 'ya_activa':
         return Response(
             {'error': 'Esta cuenta ya tiene contraseña. Ingresá o usá "¿Olvidaste tu contraseña?".',
              'code': 'ya_activa'},
@@ -273,7 +356,14 @@ def enviar(request):
         )
 
     resuelto = resolver_codigo(numero)
-    cliente = resuelto['cliente'] if resuelto else None
+    if resuelto is None:
+        return Response(
+            {'error': 'No se puede activar esta cuenta. Verificá el código o pedí ayuda a Ventas.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+    cliente = resuelto['cliente']
+    if cliente is None:
+        cliente = _alta_automatica(numero, resuelto)
     if cliente is None or cliente.user.has_usable_password():
         return Response(
             {'error': 'No se puede activar esta cuenta. Verificá el código o pedí ayuda a Ventas.'},
