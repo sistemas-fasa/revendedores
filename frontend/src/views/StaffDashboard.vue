@@ -3180,6 +3180,17 @@ export default {
                 <label class="block text-sm font-medium mb-1">Dirección:</label>
                 <textarea id="direccion" class="w-full p-2 border rounded" rows="2">${clienteDetalle.direccion || ''}</textarea>
               </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">WhatsApp:</label>
+                  <input id="whatsapp" type="tel" value="${clienteDetalle.whatsapp || ''}" placeholder="11-1234-5678" class="w-full p-2 border rounded">
+                  <p class="text-xs text-gray-500 mt-1">${clienteDetalle.whatsapp_verificado ? 'Verificado ✓' : 'Sin verificar'}${clienteDetalle.alta_automatica ? ' · Alta automática (revisar datos)' : ''}</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Usuario:</label>
+                  <input id="username" type="text" value="${clienteDetalle.username}" class="w-full p-2 border rounded">
+                </div>
+              </div>
               
               <label class="flex items-center gap-2 text-sm font-medium">
                 <input id="puede_descargar_lista" type="checkbox" ${clienteDetalle.puede_descargar_lista ? 'checked' : ''}>
@@ -3238,6 +3249,8 @@ export default {
               tipo_responsable_iva: document.getElementById('tipo_responsable_iva').value,
               cuit: document.getElementById('cuit').value,
               direccion: document.getElementById('direccion').value,
+              whatsapp: document.getElementById('whatsapp').value.trim(),
+              username: document.getElementById('username').value.trim(),
               password: document.getElementById('password').value || undefined
             };
           }

@@ -837,7 +837,7 @@ class StaffClientesView(APIView):
                 )
                 
                 # Log para auditoría
-                print(f"✅ Staff {request.user.username} creó cliente {cliente.numero_cliente} - {cliente.nombre}")
+                logger.info("Staff %s creó cliente %s - %s", request.user.username, cliente.numero_cliente, cliente.nombre)
                 
                 return Response({
                     'success': True,
@@ -846,7 +846,7 @@ class StaffClientesView(APIView):
                 }, status=201)
                 
         except Exception as e:
-            print(f"❌ Error al crear cliente: {e}")
+            logger.exception("Error al crear cliente")
             return Response({'error': f'Error al crear cliente: {str(e)}'}, status=500)
 
     def get_object(self, pk):
@@ -891,6 +891,9 @@ class StaffClientesView(APIView):
             'regimen_percepcion': cliente.regimen_percepcion,
             'cuit': cliente.cuit,
             'direccion': cliente.direccion,
+            'whatsapp': cliente.whatsapp,
+            'whatsapp_verificado': cliente.whatsapp_verificado,
+            'alta_automatica': cliente.alta_automatica,
             'is_active': cliente.user.is_active,
             'puede_descargar_lista': cliente.puede_descargar_lista,
             'date_joined': cliente.user.date_joined.isoformat(),
@@ -942,6 +945,21 @@ class StaffClientesView(APIView):
                 
                 if 'is_active' in request.data:
                     user.is_active = request.data['is_active']
+                    user_updated = True
+
+                if 'username' in request.data and request.data['username'] != user.username:
+                    nuevo_username = (request.data['username'] or '').strip()
+                    if not nuevo_username:
+                        return Response({'error': 'El nombre de usuario no puede estar vacío.'}, status=400)
+                    from django.contrib.auth.validators import UnicodeUsernameValidator
+                    from django.core.exceptions import ValidationError as _UsernameValidationError
+                    try:
+                        UnicodeUsernameValidator()(nuevo_username)
+                    except _UsernameValidationError:
+                        return Response({'error': 'El nombre de usuario solo puede tener letras, números y @/./+/-/_ .'}, status=400)
+                    if User.objects.filter(username=nuevo_username).exclude(pk=user.pk).exists():
+                        return Response({'error': 'El nombre de usuario ya está en uso.'}, status=400)
+                    user.username = nuevo_username
                     user_updated = True
                 
                 # Cambiar contraseña si se proporciona
@@ -1016,6 +1034,17 @@ class StaffClientesView(APIView):
                     cambios_cliente.append(f"direccion: {cliente.direccion} → {request.data['direccion']}")
                     cliente.direccion = request.data['direccion']
                     cliente_updated = True
+
+                if 'whatsapp' in request.data:
+                    from api.services.vogel_whatsapp import normalize_phone_ar
+                    nuevo_wpp = normalize_phone_ar(request.data['whatsapp'] or '')
+                    if (request.data['whatsapp'] or '').strip() and nuevo_wpp is None:
+                        return Response({'error': 'El WhatsApp no es válido. Usá un móvil argentino.'}, status=400)
+                    cambios_cliente.append(f"whatsapp: {cliente.whatsapp} → {nuevo_wpp or ''}")
+                    if (nuevo_wpp or '') != (cliente.whatsapp or ''):
+                        cliente.whatsapp_verificado = False
+                    cliente.whatsapp = nuevo_wpp or ''
+                    cliente_updated = True
                 
                 if cliente_updated:
                     cliente.save()
@@ -1023,7 +1052,7 @@ class StaffClientesView(APIView):
                 # Log para auditoría
                 if user_updated or cliente_updated:
                     cambios_str = ', '.join(cambios_cliente) if cambios_cliente else 'datos de usuario'
-                    print(f"🔄 Staff {request.user.username} actualizó cliente {cliente.numero_cliente}: {cambios_str}")
+                    logger.info("Staff %s actualizó cliente %s: %s", request.user.username, cliente.numero_cliente, cambios_str)
                 
                 return Response({
                     'success': True,
@@ -1031,7 +1060,7 @@ class StaffClientesView(APIView):
                 })
                 
         except Exception as e:
-            print(f"❌ Error al actualizar cliente: {e}")
+            logger.exception("Error al actualizar cliente")
             return Response({'error': f'Error al actualizar cliente: {str(e)}'}, status=500)
 
     def delete(self, request, pk, format=None):
@@ -1046,7 +1075,7 @@ class StaffClientesView(APIView):
             cliente.user.save()
             
             # Log para auditoría
-            print(f"🗑️ Staff {request.user.username} desactivó cliente {cliente.numero_cliente} - {cliente.nombre}")
+            logger.info("Staff %s desactivó cliente %s - %s", request.user.username, cliente.numero_cliente, cliente.nombre)
             
             return Response({
                 'success': True,

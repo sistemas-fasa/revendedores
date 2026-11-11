@@ -196,6 +196,29 @@ class VerificarConfirmarTests(TestCase):
         self.api.credentials(HTTP_AUTHORIZATION=f"Bearer {resp.data['access']}")
         self.assertEqual(self.api.get('/api/permiso-descarga-lista/').status_code, 200)
 
+    def test_confirmar_con_username_nuevo(self):
+        resp = self.api.post('/api/activacion/confirmar/', {
+            'codigo_cliente': '00040', 'otp': '123456', 'username': 'walterv',
+            'password1': 'Clave12345', 'password2': 'Clave12345'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['user']['username'], 'walterv')
+        # El login sigue funcionando con el código de cliente.
+        login = self.api.post('/api/token/', {'username': '40', 'password': 'Clave12345'}, format='json')
+        self.assertEqual(login.status_code, 200)
+
+    def test_confirmar_username_duplicado_400(self):
+        User.objects.create_user(username='ocupado', password='x')
+        resp = self.api.post('/api/activacion/confirmar/', {
+            'codigo_cliente': '00040', 'otp': '123456', 'username': 'ocupado',
+            'password1': 'Clave12345', 'password2': 'Clave12345'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_confirmar_username_invalido_400(self):
+        resp = self.api.post('/api/activacion/confirmar/', {
+            'codigo_cliente': '00040', 'otp': '123456', 'username': 'mal usuario!',
+            'password1': 'Clave12345', 'password2': 'Clave12345'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
 
 class LoginDualTests(TestCase):
     def setUp(self):
@@ -352,3 +375,48 @@ class AltaAutomaticaTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(User.objects.filter(username='24458').count(), 1)
         self.assertTrue(Cliente.objects.filter(numero_cliente='24458').exists())
+
+
+class StaffFichaTests(TestCase):
+    def setUp(self):
+        mail.outbox.clear()
+        self.api = APIClient()
+        self.admin = User.objects.create_user(username='admin', password='x', is_staff=True)
+        _, self.cliente = _crear_cliente(numero='00044', username='cliente44')
+        self.api.force_authenticate(self.admin)
+
+    def test_get_single_trae_whatsapp(self):
+        resp = self.api.get(f'/api/staff/clientes/{self.cliente.pk}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('whatsapp', resp.data)
+        self.assertIn('whatsapp_verificado', resp.data)
+        self.assertIn('alta_automatica', resp.data)
+
+    def test_put_actualiza_whatsapp_y_username(self):
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/', {
+            'whatsapp': '11-1234-5678', 'username': 'walter44'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.whatsapp, '5491112345678')
+        self.assertEqual(self.cliente.user.username, 'walter44')
+
+    def test_put_whatsapp_invalido_400(self):
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'whatsapp': 'no-es-numero'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_put_username_duplicado_400(self):
+        User.objects.create_user(username='ocupado2', password='x')
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'username': 'ocupado2'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_put_cambiar_whatsapp_desverifica(self):
+        self.cliente.whatsapp = '5491112345678'
+        self.cliente.whatsapp_verificado = True
+        self.cliente.save(update_fields=['whatsapp', 'whatsapp_verificado'])
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'whatsapp': '11-9999-8888'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertFalse(self.cliente.whatsapp_verificado)

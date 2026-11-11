@@ -55,7 +55,11 @@
         </div>
 
         <div v-if="paso === 3">
-          <p class="activation-help">Código correcto. Creá tu contraseña para entrar al portal.</p>
+          <p class="activation-help">Código correcto. Elegí tu usuario y creá tu contraseña para entrar al portal.</p>
+          <div class="field">
+            <label for="act-user">Nombre de usuario</label>
+            <input id="act-user" v-model="username" type="text" autocomplete="username" :placeholder="codigo" />
+          </div>
           <div class="field">
             <label for="act-p1">Nueva contraseña</label>
             <input id="act-p1" v-model="password1" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
@@ -112,6 +116,7 @@ const whatsapp = ref('')
 const enviado = ref(false)
 const canales = ref({})
 const otp = ref('')
+const username = ref('')
 const password1 = ref('')
 const password2 = ref('')
 const error = ref('')
@@ -225,6 +230,7 @@ const confirmar = async () => {
     const { data } = await api.post('/api/activacion/confirmar/', {
       codigo_cliente: codigo.value.trim(),
       otp: otp.value.trim(),
+      username: username.value.trim(),
       password1: password1.value,
       password2: password2.value,
     })

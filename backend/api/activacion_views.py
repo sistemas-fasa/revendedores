@@ -18,6 +18,7 @@ import uuid
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
@@ -216,7 +217,6 @@ def _alta_automatica(numero, resuelto):
     Usa datos de la factura + defaults configurados. Devuelve el Cliente
     o None si falta algún default (no crea datos inválidos).
     """
-    from django.contrib.auth import get_user_model
     from .models import Cliente, FormaPago, Localidades
 
     User = get_user_model()
@@ -483,6 +483,22 @@ def confirmar(request):
 
     usuario.set_password(password1)
     usuario.save(update_fields=['password'])
+    nuevo_username = (request.data.get('username') or '').strip()
+    if nuevo_username and nuevo_username != usuario.username:
+        from django.contrib.auth.validators import UnicodeUsernameValidator
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            UnicodeUsernameValidator()(nuevo_username)
+        except DjangoValidationError:
+            return Response(
+                {'error': 'El nombre de usuario solo puede tener letras, números y @/./+/-/_.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if get_user_model().objects.filter(username=nuevo_username).exclude(pk=usuario.pk).exists():
+            return Response(
+                {'error': 'Ese nombre de usuario ya está en uso. Elegí otro.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        usuario.username = nuevo_username
+        usuario.save(update_fields=['username'])
     cliente.whatsapp_verificado = True
     cliente.save(update_fields=['whatsapp_verificado'])
     registro.consumido_at = timezone.now()
