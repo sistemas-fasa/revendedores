@@ -23,7 +23,7 @@
         <ol class="steps" aria-label="Progreso">
           <li :class="{ active: paso === 1, done: paso > 1 }"><span>1</span> Código</li>
           <li :class="{ active: paso === 2, done: paso > 2 }"><span>2</span> Verificación</li>
-          <li :class="{ active: paso === 3 }"><span>3</span> Contraseña</li>
+          <li :class="{ active: paso === 3 }"><span>3</span> Usuario y contraseña</li>
         </ol>
 
         <div v-if="paso === 1">
@@ -175,7 +175,9 @@ const enviar = async () => {
       : 'Te enviamos el código por email y WhatsApp. Revisá ambos.'
   } catch (err) {
     if (err.response?.status === 429) {
-      error.value = err.response.data?.error || 'Esperá antes de pedir otro código.'
+      // Ya hay un código vigente (se envió hace segundos): dejar ingresarlo.
+      enviado.value = true
+      msg.value = 'Ya te enviamos un código. Ingresalo acá abajo o pedí otro en unos segundos.'
     } else {
       apiError(err, 'No pudimos enviar el código. Intentá más tarde.')
     }
