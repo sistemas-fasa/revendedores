@@ -93,6 +93,13 @@ Permitir que un cliente se loguee con su **código de cliente** (impreso en la f
 2. Si el `Cliente` local no existe y el ERP lo confirma, autocrear `User(username=numero_cliente, usable_password=False)` + `Cliente(numero_cliente, nombre=ERP, valores por defecto de lista_pago/localidad a definir con Ventas)`.
 3. El flujo OTP **no avanza** sin `existe=True` del contrato (evita crear cuentas basura).
 
+### Página propia `/activar`
+
+El wizard vive en `frontend/src/views/ActivarCuenta.vue` (ruta pública
+`/activar`, con indicador de pasos 1-3 y soporte `?codigo=`). El login solo
+muestra el link "¿Primera vez? Activá tu cuenta" y ante un `409
+activacion_pendiente` redirige a `/activar?codigo=...`.
+
 ### Autocreación (self-service)
 
 Si el código es válido en el ERP pero no tiene ficha local, `iniciar`/`enviar`
