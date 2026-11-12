@@ -895,6 +895,7 @@ class StaffClientesView(APIView):
             'whatsapp_verificado': cliente.whatsapp_verificado,
             'alta_automatica': cliente.alta_automatica,
             'is_active': cliente.user.is_active,
+            'is_staff': cliente.user.is_staff,
             'puede_descargar_lista': cliente.puede_descargar_lista,
             'date_joined': cliente.user.date_joined.isoformat(),
             'last_login': cliente.user.last_login.isoformat() if cliente.user.last_login else None,
@@ -912,6 +913,9 @@ class StaffClientesView(APIView):
         
         if 'puede_descargar_lista' in request.data and not isinstance(request.data['puede_descargar_lista'], bool):
             return Response({'error': 'El permiso de descarga debe ser verdadero o falso'}, status=400)
+
+        if 'is_staff' in request.data and not isinstance(request.data['is_staff'], bool):
+            return Response({'error': 'El flag de staff debe ser verdadero o falso'}, status=400)
 
         try:
             with transaction.atomic():
@@ -945,6 +949,12 @@ class StaffClientesView(APIView):
                 
                 if 'is_active' in request.data:
                     user.is_active = request.data['is_active']
+                    user_updated = True
+
+                if 'is_staff' in request.data and request.data['is_staff'] != user.is_staff:
+                    if user.pk == request.user.pk and not request.data['is_staff']:
+                        return Response({'error': 'No podés quitarte el permiso de staff a vos mismo.'}, status=400)
+                    user.is_staff = request.data['is_staff']
                     user_updated = True
 
                 if 'username' in request.data and request.data['username'] != user.username:

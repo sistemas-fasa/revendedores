@@ -455,3 +455,45 @@ class StaffFichaTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.cliente.refresh_from_db()
         self.assertFalse(self.cliente.whatsapp_verificado)
+
+    def test_get_single_trae_is_staff(self):
+        resp = self.api.get(f'/api/staff/clientes/{self.cliente.pk}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('is_staff', resp.data)
+        self.assertFalse(resp.data['is_staff'])
+
+    def test_put_marca_staff(self):
+        self.assertFalse(self.cliente.user.is_staff)
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'is_staff': True}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertTrue(self.cliente.user.is_staff)
+
+    def test_put_quita_staff(self):
+        self.cliente.user.is_staff = True
+        self.cliente.user.save(update_fields=['is_staff'])
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'is_staff': False}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertFalse(self.cliente.user.is_staff)
+
+    def test_put_is_staff_no_bool_400(self):
+        resp = self.api.put(f'/api/staff/clientes/{self.cliente.pk}/',
+                            {'is_staff': 'si'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_put_no_permite_quitarse_staff_propio(self):
+        from api.models import Cliente
+        loc = Localidades.objects.get(codigo='9999')
+        pago = FormaPago.objects.get(id='99')
+        propio = Cliente.objects.create(
+            user=self.admin, numero_cliente='00045', nombre='Admin',
+            lista_precio='1', codigo_localidad=loc, condicion_pago=pago,
+            tipo_responsable_iva='C')
+        resp = self.api.put(f'/api/staff/clientes/{propio.pk}/',
+                            {'is_staff': False}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_staff)

@@ -3196,6 +3196,10 @@ export default {
                 <input id="puede_descargar_lista" type="checkbox" ${clienteDetalle.puede_descargar_lista ? 'checked' : ''}>
                 Puede descargar lista de artículos
               </label>
+              <label class="flex items-center gap-2 text-sm font-medium">
+                <input id="is_staff" type="checkbox" ${clienteDetalle.is_staff ? 'checked' : ''}>
+                Es staff (acceso al panel de administración)
+              </label>
               <!-- Sección de Bonificaciones -->
               ${clienteDetalle.bonificaciones && clienteDetalle.bonificaciones.length > 0 ? `
                 <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
@@ -3239,6 +3243,7 @@ export default {
             return {
               email: email,
               is_active: document.getElementById('is_active').value === 'true',
+              is_staff: document.getElementById('is_staff').checked,
               puede_descargar_lista: document.getElementById('puede_descargar_lista').checked,
               first_name: document.getElementById('first_name').value,
               last_name: document.getElementById('last_name').value,
