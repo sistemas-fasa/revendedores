@@ -41,6 +41,22 @@
             <span v-else class="spinner" aria-hidden="true"></span>
           </button>
 
+          <div class="register-banner" role="note" aria-label="Solicitar alta por WhatsApp">
+            <div class="register-text">
+              <strong>¿Todavía no estás registrado?</strong>
+              <span>Escribinos por WhatsApp y te damos de alta.</span>
+            </div>
+            <a
+              class="whatsapp-button"
+              href="https://wa.me/5493743400209?text=Hola%2C%20quiero%20solicitar%20el%20alta%20en%20el%20Portal%20de%20Ventas%20de%20Ferreter%C3%ADa%20Avenida."
+              target="_blank"
+              rel="noopener"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 2a8 8 0 1 1-4.1 14.9l-.3-.2-2.9.8.8-2.8-.2-.3A8 8 0 0 1 12 4zm-3.2 4c-.2 0-.5 0-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1.1 2.7c.1.2 1.9 3.1 4.8 4.1 2.4.9 2.9.7 3.4.7.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.3l-2-1c-.3-.1-.5-.2-.7.1l-.9 1.1c-.2.2-.3.2-.6.1-.9-.4-1.7-.9-2.4-1.6-.6-.6-1-1.2-1.1-1.4-.1-.2 0-.4.1-.5l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6L8.6 6.2c-.2-.2-.4-.2-.8-.2z"/></svg>
+              <span>Solicitar alta por WhatsApp</span>
+            </a>
+          </div>
+
           <div class="recovery-toggle">
             <button type="button" class="link-button" @click="showRecovery = !showRecovery">
               ¿Olvidaste tu contraseña?
@@ -178,6 +194,28 @@ form { margin-top: 44px; }
 .submit-button:disabled { opacity: .7; cursor: wait; }
 .spinner { width: 17px; height: 17px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
 .error-message { margin-top: 4px; padding: 13px 15px; border: 1px solid #f1c3c9; border-radius: 8px; background: #fff1f2; color: #a90016; font-size: 14px; line-height: 1.4; }
+.recovery-toggle { margin-top: 20px; text-align: center; }
+.register-banner { margin-top: 22px; padding: 18px; border: 1.5px dashed #16a34a; border-radius: 10px; background: #f0fdf4; text-align: center; }
+.register-text strong { display: block; color: #14532d; font-size: 15px; font-weight: 750; }
+.register-text span { display: block; margin-top: 4px; color: #4d5a6b; font-size: 13.5px; line-height: 1.5; }
+.whatsapp-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; box-sizing: border-box; margin-top: 14px; min-height: 52px; padding: 12px 16px; border: 0; border-radius: 8px; background: #22c55e; color: #fff; font: inherit; font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; box-shadow: 0 8px 20px rgba(34,197,94,.25); transition: background .2s, transform .2s; }
+.whatsapp-button:hover { background: #16a34a; transform: translateY(-1px); }
+.whatsapp-button:focus-visible { outline: 3px solid #86efac; outline-offset: 3px; }
+.whatsapp-button svg { width: 22px; height: 22px; flex-shrink: 0; }
+.link-button { border: 0; background: none; padding: 4px; color: #b90018; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
+.link-button:focus-visible, .secondary-button:focus-visible { outline: 3px solid #ec8390; outline-offset: 3px; }
+.recovery-panel { margin-top: 16px; padding: 18px; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; }
+.recovery-panel > p { margin: 0 0 12px; color: #707988; font-size: 14px; line-height: 1.5; }
+.recovery-row { display: flex; gap: 10px; }
+.recovery-row input { flex: 1; min-width: 0; height: 48px; box-sizing: border-box; border: 1px solid #dce0e5; border-radius: 8px; background: #fff; color: #202735; font: inherit; font-size: 14px; padding: 0 14px; }
+.recovery-row input::placeholder { color: #a2a9b3; }
+.recovery-row input:focus { outline: none; border-color: #be001a; box-shadow: 0 0 0 3px rgba(190,0,26,.12); }
+.secondary-button { border: 0; border-radius: 8px; background: #313b49; color: #fff; font: inherit; font-size: 14px; font-weight: 700; padding: 0 18px; cursor: pointer; white-space: nowrap; }
+.secondary-button:hover:not(:disabled) { background: #202735; }
+.secondary-button:disabled { opacity: .7; cursor: wait; }
+.success-message { margin-top: 12px; padding: 13px 15px; border: 1px solid #bfe3c9; border-radius: 8px; background: #eef9f0; color: #166534; font-size: 14px; line-height: 1.4; }
+.activation-toggle { margin-top: 16px; text-align: center; }
 .recovery-panel .error-message { margin-top: 12px; }
 .form-footer { margin: 55px 0 0; color: #929aa5; font-size: 12px; }
 .form-footer span { padding: 0 5px; color: #c5001a; }
