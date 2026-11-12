@@ -3,7 +3,7 @@
     <section class="brand-panel" aria-label="Ferretería Avenida">
       <div class="brand-top"><img src="/logo.png" alt="Ferretería Avenida S.A." class="brand-logo" /></div>
       <div class="brand-content">
-        <span class="eyebrow"><span></span> PORTAL DE VENTAS</span>
+        <span class="eyebrow"><span></span> PORTAL DE CLIENTES</span>
         <h1>Todo lo que buscás,<br /><em>en un solo lugar.</em></h1>
         <p>Encontrá productos y gestioná tus pedidos de forma simple.</p>
       </div>
@@ -15,7 +15,7 @@
       <div class="form-wrap">
         <div class="mobile-brand"><img src="/logo.png" alt="Ferretería Avenida S.A." /></div>
         <div class="form-heading">
-          <span class="form-eyebrow">PORTAL DE VENTAS</span>
+          <span class="form-eyebrow">PORTAL DE CLIENTES</span>
           <h2 id="reset-title">Crear nueva contraseña.</h2>
           <p>Elegí una clave nueva para tu cuenta.</p>
         </div>
@@ -42,7 +42,7 @@
             <span v-else class="spinner" aria-hidden="true"></span>
           </button>
         </form>
-        <p class="form-footer">Ferretería Avenida <span>·</span> Portal de ventas</p>
+        <p class="form-footer">Ferretería Avenida <span>·</span> Portal de clientes</p>
       </div>
     </section>
   </main>

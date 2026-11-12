@@ -76,7 +76,7 @@ onUnmounted(() => {
   >
     <div class="flex h-16 items-center border-b px-5">
       <div>
-        <h1 class="text-lg font-black text-red-700">Revendedores</h1>
+        <h1 class="text-lg font-black text-red-700">Portal de clientes</h1>
         <p class="text-xs text-gray-500">Comprar, revisar y repetir</p>
       </div>
     </div>

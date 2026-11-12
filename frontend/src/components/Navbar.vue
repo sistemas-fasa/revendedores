@@ -12,7 +12,7 @@
 
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-bold text-gray-950">Ferretería Avenida</p>
-          <p class="hidden text-xs text-gray-500 sm:block">Portal de revendedores</p>
+          <p class="hidden text-xs text-gray-500 sm:block">Portal de clientes</p>
         </div>
 
         <div class="flex items-center gap-2 sm:gap-3">

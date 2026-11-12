@@ -13,9 +13,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png'],
         manifest: {
-          name: 'Ferretería Avenida SA - Portal de ventas',
-          short_name: 'FerretAvenida',
-          description: 'Portal de ventas de Ferretería Avenida SA',
+          name: 'Ferretería Avenida SA - Portal de clientes',
+          short_name: 'Portal de clientes',
+          description: 'Portal de clientes de Ferretería Avenida SA',
           theme_color: '#1f2937',
           background_color: '#ffffff',
           display: 'standalone',
