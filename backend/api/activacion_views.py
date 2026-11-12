@@ -111,6 +111,84 @@ def _texto_whatsapp(otp, expira_min):
     )
 
 
+def _texto_bienvenida_whatsapp(cliente, portal_url):
+    return (
+        'Ferretería Avenida - Portal de Ventas. '
+        f'Hola {cliente.nombre}, tu cuenta quedó activada. '
+        f'Entrá con tu código {cliente.numero_cliente} o tu usuario '
+        f'"{cliente.user.username}": {portal_url}'
+    )
+
+
+def _enviar_bienvenida(cliente):
+    """Bienvenida post-activación por email + WhatsApp. Best-effort: nunca levanta."""
+    try:
+        email = (cliente.user.email or '').strip()
+        whatsapp = (cliente.whatsapp or '').strip()
+        if not email and not whatsapp:
+            return {'email': 'omitido', 'whatsapp': 'omitido'}
+        portal_url = getattr(settings, 'FRONTEND_URL', '').rstrip('/') or 'https://ventas.ferreteriaavenida.com.ar'
+        contexto = {
+            'nombre': cliente.nombre,
+            'numero_cliente': cliente.numero_cliente,
+            'username': cliente.user.username,
+            'portal_url': portal_url,
+        }
+        resultado = {'email': 'omitido', 'whatsapp': 'omitido'}
+        if email:
+            asunto = '[FASA] Bienvenido al Portal de Ventas'
+            try:
+                html = render_to_string('emails/bienvenida.html', contexto)
+            except Exception:
+                logger.exception('No se pudo renderizar el template de bienvenida')
+                html = None
+            texto = (
+                f"Hola {cliente.nombre},\n\nTu cuenta del Portal de Ventas "
+                f"quedó activada.\nEntrá con tu código {cliente.numero_cliente} "
+                f"o tu usuario \"{cliente.user.username}\": {portal_url}\n\n"
+                'Ferretería Avenida - Portal de Ventas'
+            )
+            enviado = False
+            if getattr(settings, 'ACTIVACION_EMAIL_VIA_COLA', True):
+                try:
+                    from .services.email_cola import encolar_email
+                    enviado = encolar_email(email, asunto, cuerpo_html=html,
+                                            cuerpo_texto=texto) is not None
+                except Exception:
+                    logger.exception('No se pudo encolar la bienvenida, caigo a SMTP directo')
+                    enviado = False
+            if not enviado:
+                try:
+                    send_mail(asunto, texto, settings.DEFAULT_FROM_EMAIL, [email],
+                              html_message=html, fail_silently=False)
+                    enviado = True
+                except Exception:
+                    logger.exception('Error enviando bienvenida por email a %s', email)
+            resultado['email'] = 'ok' if enviado else 'error'
+        if whatsapp:
+            try:
+                envio = VogelWhatsAppClient().send_text(
+                    whatsapp,
+                    _texto_bienvenida_whatsapp(cliente, portal_url),
+                    external_ref=f"bienvenida:{cliente.numero_cliente}:{uuid.uuid4().hex[:8]}",
+                )
+                if envio.get('sent'):
+                    resultado['whatsapp'] = 'ok'
+                elif envio.get('reason') == 'not_configured':
+                    resultado['whatsapp'] = 'omitido'
+                else:
+                    resultado['whatsapp'] = 'error'
+            except Exception:
+                logger.exception('Error enviando bienvenida por WhatsApp a %s',
+                                 _enmascarar_whatsapp(whatsapp))
+                resultado['whatsapp'] = 'error'
+        return resultado
+    except Exception:
+        logger.exception('Error inesperado enviando bienvenida al cliente %s',
+                         getattr(cliente, 'numero_cliente', '?'))
+        return {'email': 'error', 'whatsapp': 'error'}
+
+
 def _crear_y_enviar(cliente, email, whatsapp):
     """Genera OTP, lo persiste hasheado y lo envía. Invalida pendientes previos."""
     from .models import ActivacionOTP
@@ -513,6 +591,9 @@ def confirmar(request):
         ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
     )
     logger.info('Cuenta activada para cliente %s', numero)
+    bienvenida = _enviar_bienvenida(cliente)
+    logger.info('Bienvenida enviada a cliente %s (email=%s whatsapp=%s)',
+                numero, bienvenida.get('email'), bienvenida.get('whatsapp'))
     return Response({
         'refresh': str(refresh),
         'access': str(refresh.access_token),

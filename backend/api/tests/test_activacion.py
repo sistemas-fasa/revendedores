@@ -196,6 +196,41 @@ class VerificarConfirmarTests(TestCase):
         self.api.credentials(HTTP_AUTHORIZATION=f"Bearer {resp.data['access']}")
         self.assertEqual(self.api.get('/api/permiso-descarga-lista/').status_code, 200)
 
+    def test_confirmar_envia_bienvenida_email_y_whatsapp(self):
+        self.cliente.user.email = 'c@mail.com'
+        self.cliente.user.save(update_fields=['email'])
+        self.cliente.whatsapp = '5491112345678'
+        self.cliente.save(update_fields=['whatsapp'])
+        with self.settings(ACTIVACION_EMAIL_VIA_COLA=False), \
+                mock.patch.object(VogelWhatsAppClient, 'send_text',
+                                  return_value={'sent': True, 'message_id': 'w1'}) as mock_wa:
+            resp = self.api.post('/api/activacion/confirmar/', {
+                'codigo_cliente': '00040', 'otp': '123456',
+                'password1': 'Clave12345', 'password2': 'Clave12345'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('c@mail.com', mail.outbox[0].to)
+        self.assertIn('Bienvenid', mail.outbox[0].subject)
+        mock_wa.assert_called_once()
+        args, _ = mock_wa.call_args
+        self.assertEqual(args[0], '5491112345678')
+
+    def test_confirmar_bienvenida_no_bloquea_si_falla(self):
+        self.cliente.user.email = 'c@mail.com'
+        self.cliente.user.save(update_fields=['email'])
+        self.cliente.whatsapp = '5491112345678'
+        self.cliente.save(update_fields=['whatsapp'])
+        with self.settings(ACTIVACION_EMAIL_VIA_COLA=False), \
+                mock.patch.object(VogelWhatsAppClient, 'send_text',
+                                  side_effect=RuntimeError('wa caído')), \
+                mock.patch('api.activacion_views.send_mail',
+                           side_effect=RuntimeError('smtp caído')):
+            resp = self.api.post('/api/activacion/confirmar/', {
+                'codigo_cliente': '00040', 'otp': '123456',
+                'password1': 'Clave12345', 'password2': 'Clave12345'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('access', resp.data)
+
     def test_confirmar_con_username_nuevo(self):
         resp = self.api.post('/api/activacion/confirmar/', {
             'codigo_cliente': '00040', 'otp': '123456', 'username': 'walterv',

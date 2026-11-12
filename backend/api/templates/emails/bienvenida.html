@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Bienvenido al Portal de Ventas</title></head>
+<body>
+<div style="background:#f5f7fb;padding:24px 0;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(16,24,40,.08);">
+    <div style="background:#a90016;padding:18px 24px;color:#fff;">
+      <div style="font-size:18px;font-weight:700;">Ferretería Avenida</div>
+      <div style="font-size:13px;opacity:.85;">Portal de Ventas - Cuenta activada</div>
+    </div>
+    <div style="padding:24px;">
+      <h2 style="margin:0 0 8px;font-size:22px;">Bienvenido, {{ nombre }}</h2>
+      <p style="margin:0 0 16px;color:#4b5563;">Tu cuenta quedó activada. Ya podés entrar al portal con tu código de cliente <strong>{{ numero_cliente }}</strong> o tu usuario <strong>{{ username }}</strong> y la contraseña que acabás de crear.</p>
+      <div style="text-align:center;margin:20px 0;">
+        <a href="{{ portal_url }}" style="display:inline-block;background:#a90016;color:#fff;text-decoration:none;font-weight:700;padding:12px 28px;border-radius:8px;">Entrar al portal</a>
+      </div>
+      <p style="margin:0;color:#6b7280;font-size:13px;">Si tenés dudas, respondé este mensaje o hablanos por WhatsApp.</p>
+    </div>
+    <div style="background:#f9fafb;padding:14px 24px;font-size:12px;color:#6b7280;text-align:center;">Ferretería Avenida · Portal de ventas</div>
+  </div>
+</div>
+</body>
+</html>
