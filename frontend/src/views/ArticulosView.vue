@@ -1001,13 +1001,13 @@ onMounted(() => {
 
 
         <!-- Barra de búsqueda -->
-        <div v-show="!hideSearchDueToDrawer" class="mobile-search-card relative !z-[5] rounded-lg border border-red-200 bg-white shadow-md" style="z-index:5">
-          <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div>
-              <p class="text-sm font-black text-gray-950">Armar pedido</p>
-              <p class="text-xs font-medium text-gray-500">Buscá por clave, nombre o código y agregá productos sin salir del catálogo.</p>
+        <div v-show="!hideSearchDueToDrawer" class="mobile-search-card rounded-lg border border-red-200 bg-white shadow-md sm:!z-[5]" style="z-index:5">
+          <div class="mobile-search-head flex flex-col gap-2 border-b border-gray-200 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3">
+            <div class="mobile-search-copy flex items-center gap-2">
+              <p class="whitespace-nowrap text-sm font-black text-gray-950">Armar pedido</p>
+              <p class="hidden text-xs font-medium text-gray-500 sm:block">Buscá por clave, nombre o código y agregá productos sin salir del catálogo.</p>
             </div>
-            <div class="flex flex-wrap gap-2 text-xs font-bold">
+            <div class="mobile-search-chips flex gap-2 overflow-x-auto text-xs font-bold sm:flex-wrap">
               <RouterLink to="/productos?oferta=1" class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-green-800 hover:bg-green-100">Ofertas</RouterLink>
               <RouterLink to="/productos?discontinuados=1" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 hover:bg-amber-100">Discontinuados</RouterLink>
               <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-700 hover:bg-gray-50" @click="clearSearch">Ver todos</button>
@@ -1020,10 +1020,10 @@ onMounted(() => {
               </button>
             </div>
           </div>
-          <div class="mobile-search-body px-4 py-3 sm:px-5">
-          <div class="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row">
-            <div class="mobile-search-input relative flex-grow rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
-              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
+          <div class="mobile-search-body px-3 py-2 sm:px-5 sm:py-3">
+          <div class="mx-auto flex max-w-6xl flex-row items-center gap-2 sm:gap-3">
+            <div class="mobile-search-input relative min-w-0 flex-1 rounded-lg border-2 border-red-300 bg-white shadow-sm transition focus-within:border-red-600 focus-within:shadow-lg">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 sm:pl-4">
                 <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm sm:h-9 sm:w-9">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1034,8 +1034,24 @@ onMounted(() => {
                 ref="searchInputRef"
                 v-model="searchQuery"
                 placeholder="Clave, nombre o código..."
-                class="h-12 w-full rounded-lg border-0 bg-transparent py-3 pl-14 pr-4 text-base font-bold text-gray-950 placeholder:text-gray-400 focus:outline-none sm:h-14 sm:pl-16 sm:pr-24 sm:text-lg"
+                enterkeyhint="search"
+                inputmode="search"
+                autocomplete="off"
+                class="h-11 w-full rounded-lg border-0 bg-transparent py-2 pl-12 pr-10 text-base font-bold text-gray-950 placeholder:text-gray-400 focus:outline-none sm:h-14 sm:pl-16 sm:pr-24 sm:text-lg"
               />
+              <button
+                v-if="searchQuery"
+                type="button"
+                @click="clearSearch"
+                aria-label="Limpiar búsqueda"
+                class="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-red-600 sm:hidden"
+              >
+                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </span>
+              </button>
               <div class="pointer-events-none absolute inset-y-0 right-0 hidden items-center pr-4 sm:flex">
                 <div v-if="loading && searchQuery" class="animate-spin h-5 w-5 text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1051,7 +1067,7 @@ onMounted(() => {
 
             <button
               @click="clearSearch"
-              class="mobile-clear-button inline-flex h-12 w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-5 text-sm font-bold text-red-700 shadow-sm hover:bg-red-50 sm:h-14 lg:w-auto"
+              class="mobile-clear-button hidden h-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white px-5 text-sm font-bold text-red-700 shadow-sm hover:bg-red-50 sm:inline-flex sm:h-14 lg:inline-flex lg:w-auto"
             >
               Limpiar
             </button>
@@ -1941,29 +1957,38 @@ onMounted(() => {
   }
 
   .mobile-search-card {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
 
   .mobile-search-head {
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
 
   .mobile-search-copy h2 {
     display: none;
   }
 
-  .mobile-search-copy p:last-child {
-    margin-top: 2px;
-    font-size: 12px;
-    line-height: 1.35;
+  /* Cuando el teclado está abierto (input con foco), colapsar
+     los chips para que los resultados queden visibles */
+  .mobile-search-card:focus-within .mobile-search-chips {
+    display: none;
+  }
+
+  .mobile-search-card:focus-within .mobile-search-head {
+    padding: 6px 12px;
   }
 
   .mobile-search-chips {
     display: flex;
+    flex-wrap: nowrap;
     gap: 6px;
     overflow-x: auto;
     padding-bottom: 2px;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   .mobile-search-chips::-webkit-scrollbar {
@@ -1972,29 +1997,20 @@ onMounted(() => {
 
   .mobile-search-chips > * {
     flex: 0 0 auto;
-    padding: 7px 10px;
+    padding: 6px 10px;
     border-radius: 999px;
     white-space: nowrap;
   }
 
   .mobile-search-body {
-    padding: 10px 12px 12px;
+    padding: 8px 10px 10px;
   }
 
   .mobile-search-input input {
-    height: 52px;
+    height: 44px;
     min-width: 0;
-    padding-left: 56px;
-    font-size: 18px;
-  }
-
-  .mobile-search-input .h-9 {
-    height: 36px;
-    width: 36px;
-  }
-
-  .mobile-clear-button {
-    height: 42px;
+    padding-left: 48px;
+    font-size: 16px;
   }
 
   .products-view-toolbar {
