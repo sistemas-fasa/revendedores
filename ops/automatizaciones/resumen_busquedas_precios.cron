@@ -1,0 +1,4 @@
+# Resumen diario de búsquedas y Ver precio (20:00 Arg, actividad del día).
+# Usa el SMTP de /run/secrets/informes-diarios.env (sourcéado en el comando).
+# Lock propio; logs en /data/logs/linux/resumen_busquedas_precios/.
+0 20 * * * root JOB_NAME=resumen_busquedas_precios JOB_TIMEOUT_SECONDS=900 JOB_COMMAND='set -a; . /run/secrets/informes-diarios.env; set +a; python3 /opt/automatizaciones/jobs/resumen_busquedas_precios.py' JOB_LOCK_FILE=/data/locks/resumen_busquedas_precios.lock /usr/local/bin/automatizaciones-runner >> /data/logs/linux/resumen_busquedas_precios/cron.log 2>&1
