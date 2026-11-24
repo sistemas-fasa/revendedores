@@ -554,7 +554,6 @@ async function flushPreciosLote(registrar = false) {
       post,
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout precios lote')), 20000)),
     ])
-    try { document.title = `precios OK ${Object.keys(data.precios || {}).length}` } catch (e) {}
     const precios = data.precios || {}
     claves.forEach((c) => {
       const a = articulos.value.find((x) => x.clave === c)
@@ -570,7 +569,6 @@ async function flushPreciosLote(registrar = false) {
     })
   } catch (err) {
     console.error('Error al consultar precios en lote:', err)
-    try { document.title = `precios ERROR ${(err && err.message) || err}` } catch (e) {}
     claves.forEach((c) => {
       const a = articulos.value.find((x) => x.clave === c)
       if (a) { a.consultandoPrecio = false; a.precioError = true }
@@ -585,7 +583,6 @@ function pedirPreciosFaltantes() {
   articulos.value.forEach((a) => {
     if (n < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); n++ }
   })
-  try { document.title = `precios cola=${n} arts=${articulos.value.length}` } catch (e) {}
   if (n) programarFlushPrecios(false)
 }
 
