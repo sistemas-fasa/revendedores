@@ -507,7 +507,7 @@ const toggleFavorite = async (articulo) => {
 // 1 segundo (dwell): rápido para el cliente y registra interés real.
 const PRECIOS_VISTOS_KEY = 'precios_vistos'
 let preciosVistosSet = new Set()
-try { preciosVistosSet = new Set(JSON.parse(sessionStorage.getItem(PRECIOS_VISTOS_KEY) || '[]')) } catch (e) {}
+try { sessionStorage.removeItem(PRECIOS_VISTOS_KEY) } catch (e) {}
 const colaPrecios = new Set()
 const dwellTimers = new Map()
 const visiblesAhora = new Set()
@@ -521,8 +521,14 @@ function actualizarDebug(extra = '') {
   debugPrecios.value = `obs:${debugObs} vis:${visiblesAhora.size} cola:${colaPrecios.size} flush:${debugFlush} vistos:${preciosVistosSet.size}${extra ? ' ' + extra : ''}`
 }
 
+// Vistos SOLO en memoria (por carga de página): persistirlo en sessionStorage
+// bloqueaba la recarga en visitas siguientes (artículos frescos sin precio
+// + clave ya marcada = shimmer eterno). El re-registro por recarga es
+// despreciable frente a romper la vista.
+
 function persistirPreciosVistos() {
-  try { sessionStorage.setItem(PRECIOS_VISTOS_KEY, JSON.stringify([...preciosVistosSet].slice(-1000))) } catch (e) {}
+  // Sin persistencia (ver nota arriba): solo limpia restos viejos.
+  try { sessionStorage.removeItem(PRECIOS_VISTOS_KEY) } catch (e) {}
 }
 
 function necesitaPrecio(art) {
