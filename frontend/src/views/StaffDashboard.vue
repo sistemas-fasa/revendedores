@@ -1057,6 +1057,161 @@
       </div>
     </section>
     </div>
+
+    <div v-show="activeStaffTab === 'reactivacion'" class="staff-tab-panel">
+    <section class="staff-panel staff-panel-wide">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-4">
+        <div>
+          <h2 class="staff-section-title">Clientes inactivos (solo login)</h2>
+          <p class="text-sm text-gray-600 mt-1">No ingresan hace <strong>{{ inactivosDias }}</strong> días o más. Tildá y mandales mail para que vuelvan a consultar precios y novedades.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-end">
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Días sin ingresar</label>
+            <select v-model.number="inactivosDias" @change="fetchInactivos(1)" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500">
+              <option :value="30">30+ días</option>
+              <option :value="60">60+ días</option>
+              <option :value="90">90+ días</option>
+              <option :value="120">120+ días</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Buscar</label>
+            <input v-model="inactivosSearch" @input="onInactivosSearchInput" type="text" placeholder="Nº, nombre, usuario, email..." class="border border-gray-300 rounded-md px-3 py-2 text-sm w-64 focus:outline-none focus:ring-1 focus:ring-red-500" />
+          </div>
+          <label class="flex items-center gap-1 text-xs text-gray-700 pb-2">
+            <input type="checkbox" v-model="inactivosSoloEmail" @change="fetchInactivos(1)" /> solo con email
+          </label>
+          <button @click="fetchInactivos(inactivosPage)" :disabled="loadingInactivos" class="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+            {{ loadingInactivos ? 'Cargando...' : 'Actualizar' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="loadingInactivos" class="text-center py-6">
+        <div class="animate-spin inline-block w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full"></div>
+        <p class="mt-2 text-gray-600">Buscando inactivos...</p>
+      </div>
+
+      <div v-else-if="inactivos.length === 0" class="text-center py-6 text-gray-500">
+        No hay clientes inactivos con ese filtro. ¡Buena retención!
+      </div>
+
+      <div v-else>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-gray-50 p-3 rounded-lg border">
+          <div class="text-sm text-gray-700">
+            <strong>{{ inactivosTotal }}</strong> inactivos ·
+            <strong>{{ inactivosSeleccionados.length }}</strong> seleccionados ·
+            <button @click="toggleSelectAllInactivos" class="text-blue-600 underline ml-1">{{ todosInactivosSeleccionados ? 'Deseleccionar página' : 'Seleccionar página' }}</button>
+          </div>
+          <button @click="enviarReactivacion" :disabled="enviandoReactivacion || inactivosSeleccionados.length === 0" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+            {{ enviandoReactivacion ? 'Enviando...' : `Enviar invitación (${inactivosSeleccionados.length})` }}
+          </button>
+        </div>
+
+        <div v-if="reactivacionResultado" class="mb-3 p-3 rounded-lg border text-sm" :class="reactivacionResultado.errores && reactivacionResultado.errores.length ? 'bg-yellow-50 border-yellow-300 text-yellow-900' : 'bg-green-50 border-green-300 text-green-900'">
+          {{ reactivacionResultado.message }} <span v-if="reactivacionResultado.campaign">· Campaña: {{ reactivacionResultado.campaign }}</span>
+          <span v-if="reactivacionResultado.omitidos && reactivacionResultado.omitidos.length"> · Omitidos: {{ reactivacionResultado.omitidos.length }} (sin email o con BAJA)</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-gray-50 border-b">
+                <th class="py-2 px-3"><input type="checkbox" :checked="todosInactivosSeleccionados" @change="toggleSelectAllInactivos" /></th>
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Cliente</th>
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Usuario / Email</th>
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Último ingreso</th>
+                <th class="text-center py-3 px-4 font-medium text-gray-700">Días</th>
+                <th class="text-center py-3 px-4 font-medium text-gray-700">Email OK</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in inactivos" :key="c.cliente_id" class="border-b hover:bg-gray-50">
+                <td class="py-3 px-3 text-center"><input type="checkbox" :value="c.cliente_id" v-model="inactivosSeleccionados" /></td>
+                <td class="py-3 px-4">
+                  <div class="font-medium text-gray-900">{{ c.numero_cliente }} — {{ c.nombre }}</div>
+                  <div v-if="c.nunca_ingreso" class="text-xs text-orange-600 font-semibold">Nunca ingresó</div>
+                </td>
+                <td class="py-3 px-4 text-sm text-gray-600">
+                  <div class="font-medium text-gray-800">{{ c.username }}</div>
+                  <div>{{ c.email || '— sin email —' }}</div>
+                </td>
+                <td class="py-3 px-4 text-sm text-gray-600">{{ formatDateTime(c.ultimo_ingreso) }}</td>
+                <td class="py-3 px-4 text-center font-bold" :class="c.dias_inactivo >= 90 ? 'text-red-700' : 'text-orange-600'">{{ c.dias_inactivo }}</td>
+                <td class="py-3 px-4 text-center text-sm">
+                  <span v-if="!c.email" class="text-gray-400">sin email</span>
+                  <span v-else-if="!c.recibe_ofertas_email" class="text-red-600 font-semibold" title="Pidió BAJA">BAJA</span>
+                  <span v-else class="text-green-600">sí</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2 text-sm text-gray-600">
+          <div>Página {{ inactivosPage }} de {{ inactivosTotalPages }} — {{ inactivosTotal }} clientes</div>
+          <div class="flex gap-2">
+            <button :disabled="inactivosPage <= 1" @click="fetchInactivos(inactivosPage - 1)" class="px-3 py-1 border rounded disabled:opacity-50">Anterior</button>
+            <button :disabled="inactivosPage >= inactivosTotalPages" @click="fetchInactivos(inactivosPage + 1)" class="px-3 py-1 border rounded disabled:opacity-50">Siguiente</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-6 border-gray-200" />
+
+      <div>
+        <h3 class="staff-section-title">Quién volvió por la campaña</h3>
+        <p class="text-sm text-gray-600 mt-1 mb-3">Cruza aperturas del mail con ingresos posteriores. A los que volvieron les podés mandar la guía rápida.</p>
+        <div class="flex flex-wrap gap-2 items-end mb-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Campaña (vacío = última)</label>
+            <input v-model="reactivadosCampaign" type="text" placeholder="reactivacion-20261124" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-64 focus:outline-none focus:ring-1 focus:ring-red-500" />
+          </div>
+          <button @click="fetchReactivados" :disabled="loadingReactivados" class="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+            {{ loadingReactivados ? 'Cargando...' : 'Ver quién volvió' }}
+          </button>
+          <button v-if="reactivados.length" @click="enviarGuia" :disabled="enviandoGuia || reactivadosSeleccionados.length === 0" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+            {{ enviandoGuia ? 'Enviando...' : `Enviar guía (${reactivadosSeleccionados.length})` }}
+          </button>
+        </div>
+
+        <div v-if="reactivadosResumen" class="mb-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border">
+          Campaña <strong>{{ reactivadosCampaignEfectiva }}</strong>: <strong>{{ reactivadosResumen.abrieron }}</strong> abrieron, <strong>{{ reactivadosResumen.volvieron }}</strong> volvieron al portal.
+          <span v-if="guiaResultado" class="block mt-1 text-green-700">{{ guiaResultado.message }} · Campaña: {{ guiaResultado.campaign }}</span>
+        </div>
+
+        <div v-if="reactivados.length" class="overflow-x-auto">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-gray-50 border-b">
+                <th class="py-2 px-3"><input type="checkbox" :checked="todosReactivadosSeleccionados" @change="toggleSelectAllReactivados" /></th>
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Cliente</th>
+                <th class="text-left py-3 px-4 font-medium text-gray-700">Apertura</th>
+                <th class="text-center py-3 px-4 font-medium text-gray-700">Volvió</th>
+                <th class="text-center py-3 px-4 font-medium text-gray-700">Consultas/Pedidos post</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in reactivados" :key="r.email" class="border-b hover:bg-gray-50">
+                <td class="py-3 px-3 text-center"><input type="checkbox" :value="r.cliente_id" :disabled="!r.cliente_id || !r.volvio" v-model="reactivadosSeleccionados" /></td>
+                <td class="py-3 px-4">
+                  <div class="font-medium text-gray-900">{{ r.numero_cliente ? `${r.numero_cliente} — ${r.nombre}` : r.email }}</div>
+                  <div class="text-xs text-gray-500">{{ r.username || 'sin usuario' }} · {{ r.aperturas }} apertura(s)</div>
+                </td>
+                <td class="py-3 px-4 text-sm text-gray-600">{{ formatDateTime(r.primera_apertura) }}</td>
+                <td class="py-3 px-4 text-center text-sm">
+                  <span v-if="r.volvio" class="text-green-700 font-semibold">sí · {{ formatDateTime(r.primer_regreso) }}</span>
+                  <span v-else class="text-gray-400">no</span>
+                </td>
+                <td class="py-3 px-4 text-center text-sm text-gray-700">{{ r.consultas_post }} / {{ r.pedidos_post }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    </div>
     </div>
   </div>
 
@@ -1476,6 +1631,11 @@ export default {
           id: 'metricas',
           label: 'Métricas',
           description: 'Ventas y sesiones'
+        },
+        {
+          id: 'reactivacion',
+          label: 'Reactivación',
+          description: 'Inactivos y mails'
         }
       ],
       
@@ -1590,6 +1750,28 @@ export default {
       // Resumen de vistas de ofertas/discontinuados
       articulosVistasSummary: [],
       loadingArticulosVistasSummary: false,
+      // Reactivación: clientes inactivos (solo login)
+      inactivos: [],
+      inactivosSeleccionados: [],
+      inactivosDias: 30,
+      inactivosSearch: '',
+      inactivosSoloEmail: true,
+      inactivosPage: 1,
+      inactivosTotalPages: 1,
+      inactivosTotal: 0,
+      loadingInactivos: false,
+      enviandoReactivacion: false,
+      reactivacionResultado: null,
+      inactivosSearchTimeout: null,
+      // Reactivados: quién volvió por la campaña
+      reactivadosCampaign: '',
+      reactivadosCampaignEfectiva: '',
+      reactivados: [],
+      reactivadosResumen: null,
+      reactivadosSeleccionados: [],
+      loadingReactivados: false,
+      enviandoGuia: false,
+      guiaResultado: null,
     };
   },
   async created() {
@@ -1793,6 +1975,15 @@ export default {
           formatter: (value) => `${value.toFixed(1)}%`,
         },
       };
+    },
+    todosInactivosSeleccionados() {
+      if (!this.inactivos.length) return false;
+      return this.inactivos.every((c) => this.inactivosSeleccionados.includes(c.cliente_id));
+    },
+    todosReactivadosSeleccionados() {
+      const elegibles = this.reactivados.filter((r) => r.cliente_id && r.volvio);
+      if (!elegibles.length) return false;
+      return elegibles.every((r) => this.reactivadosSeleccionados.includes(r.cliente_id));
     },
   },
   methods: {
@@ -2053,6 +2244,148 @@ export default {
         Toast.show('Error al cargar vistas de ofertas/discontinuados', 'error');
       } finally {
         this.loadingArticulosVistasSummary = false;
+      }
+    },
+
+    // Reactivación: clientes inactivos (solo login)
+    async fetchInactivos(page = 1) {
+      this.loadingInactivos = true;
+      try {
+        const response = await api.get('/api/staff/clientes/inactivos/', {
+          params: {
+            dias: this.inactivosDias,
+            search: this.inactivosSearch,
+            solo_con_email: this.inactivosSoloEmail ? 1 : 0,
+            page,
+            page_size: 20,
+          },
+        });
+        this.inactivos = response.data.results || [];
+        const pag = response.data.pagination || {};
+        this.inactivosPage = pag.current_page || page;
+        this.inactivosTotalPages = pag.total_pages || 1;
+        this.inactivosTotal = pag.total_items || this.inactivos.length;
+        // Limpiar selección que ya no está en página
+        const idsPagina = new Set(this.inactivos.map((c) => c.cliente_id));
+        this.inactivosSeleccionados = this.inactivosSeleccionados.filter((id) => idsPagina.has(id));
+      } catch (error) {
+        console.error('❌ Error al cargar inactivos:', error);
+        Toast.show('Error al cargar clientes inactivos', 'error');
+        this.inactivos = [];
+      } finally {
+        this.loadingInactivos = false;
+      }
+    },
+
+    onInactivosSearchInput() {
+      clearTimeout(this.inactivosSearchTimeout);
+      this.inactivosSearchTimeout = setTimeout(() => this.fetchInactivos(1), 400);
+    },
+
+    async fetchReactivados() {
+      this.loadingReactivados = true;
+      try {
+        const params = {};
+        if (this.reactivadosCampaign.trim()) params.campaign = this.reactivadosCampaign.trim();
+        const response = await api.get('/api/staff/clientes/reactivados/', { params });
+        this.reactivados = response.data.results || [];
+        this.reactivadosResumen = response.data.resumen || null;
+        this.reactivadosCampaignEfectiva = response.data.campaign || '';
+        if (this.reactivadosCampaignEfectiva && !this.reactivadosCampaign) {
+          this.reactivadosCampaign = this.reactivadosCampaignEfectiva;
+        }
+        this.reactivadosSeleccionados = [];
+        this.guiaResultado = null;
+        if (!this.reactivados.length) Toast.show('Sin aperturas para esa campaña todavía', 'info');
+      } catch (error) {
+        console.error('❌ Error al cargar reactivados:', error);
+        Toast.show('Error al cargar reactivados', 'error');
+        this.reactivados = [];
+      } finally {
+        this.loadingReactivados = false;
+      }
+    },
+
+    toggleSelectAllReactivados() {
+      const elegibles = this.reactivados.filter((r) => r.cliente_id && r.volvio).map((r) => r.cliente_id);
+      const todos = elegibles.length && elegibles.every((id) => this.reactivadosSeleccionados.includes(id));
+      if (todos) {
+        this.reactivadosSeleccionados = this.reactivadosSeleccionados.filter((id) => !elegibles.includes(id));
+      } else {
+        const set = new Set(this.reactivadosSeleccionados);
+        elegibles.forEach((id) => set.add(id));
+        this.reactivadosSeleccionados = Array.from(set);
+      }
+    },
+
+    async enviarGuia() {
+      if (!this.reactivadosSeleccionados.length) return;
+      const Swal = await this.getSwal();
+      const confirm = await Swal.fire({
+        title: `¿Enviar guía a ${this.reactivadosSeleccionados.length} clientes?`,
+        html: `Guía rápida de uso del portal por la cola de mails.<br/>Se omiten sin email válido o con BAJA.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#a90016',
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!confirm.isConfirmed) return;
+      this.enviandoGuia = true;
+      try {
+        const response = await api.post('/api/staff/clientes/reactivados/enviar-guia/', {
+          cliente_ids: this.reactivadosSeleccionados,
+        });
+        this.guiaResultado = response.data;
+        Toast.show(response.data.message || 'Guías procesadas', 'success');
+        this.reactivadosSeleccionados = [];
+      } catch (error) {
+        console.error('❌ Error al enviar guía:', error);
+        Toast.show(error.response?.data?.error || 'Error al enviar guía', 'error');
+      } finally {
+        this.enviandoGuia = false;
+      }
+    },
+
+    toggleSelectAllInactivos() {
+      const idsPagina = this.inactivos.map((c) => c.cliente_id);
+      const todos = idsPagina.every((id) => this.inactivosSeleccionados.includes(id));
+      if (todos) {
+        this.inactivosSeleccionados = this.inactivosSeleccionados.filter((id) => !idsPagina.includes(id));
+      } else {
+        const set = new Set(this.inactivosSeleccionados);
+        idsPagina.forEach((id) => set.add(id));
+        this.inactivosSeleccionados = Array.from(set);
+      }
+    },
+
+    async enviarReactivacion() {
+      if (!this.inactivosSeleccionados.length) return;
+      const Swal = await this.getSwal();
+      const confirm = await Swal.fire({
+        title: `¿Enviar invitación a ${this.inactivosSeleccionados.length} clientes?`,
+        html: `Se encolará por la cola de mails (campaña trackeada).<br/>Se omiten sin email válido o con BAJA.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#a90016',
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!confirm.isConfirmed) return;
+      this.enviandoReactivacion = true;
+      try {
+        const response = await api.post('/api/staff/clientes/inactivos/enviar/', {
+          cliente_ids: this.inactivosSeleccionados,
+          dias: this.inactivosDias,
+        });
+        this.reactivacionResultado = response.data;
+        Toast.show(response.data.message || 'Mails procesados', 'success');
+        this.inactivosSeleccionados = [];
+      } catch (error) {
+        console.error('❌ Error al enviar reactivación:', error);
+        Toast.show(error.response?.data?.error || 'Error al enviar mails', 'error');
+      } finally {
+        this.enviandoReactivacion = false;
       }
     },
 
@@ -3621,6 +3954,9 @@ export default {
     } catch (error) {
       console.error('Error al cargar ApexChart:', error);
     }
+
+    // Precargar inactivos (30 días) para la pestaña Reactivación
+    this.fetchInactivos(1);
     
     // Agregar event listener para cerrar sugerencias al hacer click fuera
     document.addEventListener('click', this.handleClickOutside);
