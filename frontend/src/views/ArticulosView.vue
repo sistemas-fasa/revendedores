@@ -457,7 +457,7 @@ const fetchArticulos = async () => {
         if (extra < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); extra++ }
       })
       if (extra) {
-        console.info(`[precios] red de seguridad: ${extra} pendientes`)
+        actualizarDebug(`red:${extra}`)
         programarFlushPrecios()
       }
     }, 2500);
@@ -513,6 +513,13 @@ const dwellTimers = new Map()
 const visiblesAhora = new Set()
 let flushPreciosTimer = null
 let precioObserver = null
+// TEMPORAL debug visible (la consola se elimina en el build prod)
+const debugPrecios = ref('init')
+let debugObs = 0
+let debugFlush = 0
+function actualizarDebug(extra = '') {
+  debugPrecios.value = `obs:${debugObs} vis:${visiblesAhora.size} cola:${colaPrecios.size} flush:${debugFlush} vistos:${preciosVistosSet.size}${extra ? ' ' + extra : ''}`
+}
 
 function persistirPreciosVistos() {
   try { sessionStorage.setItem(PRECIOS_VISTOS_KEY, JSON.stringify([...preciosVistosSet].slice(-1000))) } catch (e) {}
@@ -531,6 +538,8 @@ function programarFlushPrecios() {
 async function flushPreciosLote() {
   const claves = [...colaPrecios].filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
   colaPrecios.clear()
+  debugFlush++
+  actualizarDebug()
   if (!claves.length) return
   claves.forEach((c) => {
     const a = articulos.value.find((x) => x.clave === c)
@@ -577,10 +586,13 @@ function reintentarPrecio(art) {
 function observarTarjeta(el, art) {
   if (!el || !art) return
   if (!('IntersectionObserver' in window)) {
+    actualizarDebug('sin-IO')
     if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
     return
   }
-  if (!necesitaPrecio(art)) return
+  if (!necesitaPrecio(art)) { actualizarDebug('ya-visto'); return }
+  debugObs++
+  actualizarDebug()
   if (!precioObserver) {
     precioObserver = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -588,6 +600,7 @@ function observarTarjeta(el, art) {
         if (!clave) return
         if (entry.isIntersecting) {
           visiblesAhora.add(clave)
+          actualizarDebug()
           if (!dwellTimers.has(clave)) {
             dwellTimers.set(clave, setTimeout(() => {
               dwellTimers.delete(clave)
@@ -1184,6 +1197,8 @@ onUnmounted(() => {
 
 <template>
   <div class="ui-page pb-20 xl:pb-0">
+    <!-- TEMPORAL debug precios (sacar cuando ande) -->
+    <div class="fixed bottom-2 right-2 z-[9999] rounded bg-black px-2 py-1 font-mono text-[11px] text-lime-300">precios {{ debugPrecios }}</div>
     <main class="main-content">
       <div
         class="grid items-start gap-4 transition-[grid-template-columns] duration-200"
