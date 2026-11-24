@@ -76,6 +76,9 @@ const totalPages = ref(1)
 const totalItems = ref(0)
 const pageSize = ref(12)
 const pageSizeOptions = [12, 24, 36, 48, 60, 72, 84, 96]
+// Blindaje de carrera entre pedidos de lista (ver fetchArticulos)
+let listAbort = null
+let listSeq = 0
 const viewMode = ref('grid')
 
 // Detectar si es escritorio
@@ -397,9 +400,16 @@ const removeToast = (id) => {
 const fetchArticulos = async () => {
   loading.value = true
   error.value = null
+  // Blindaje: abortar el pedido anterior y ignorar respuestas viejas.
+  // Sin esto, un click rápido de página deja el loading colgado o muestra
+  // datos de otra página (el paginador desaparece y "queda en la primera").
+  if (listAbort) { try { listAbort.abort() } catch (e) {} }
+  listAbort = new AbortController()
+  const seq = ++listSeq
+  const signal = listAbort.signal
   try {
     // Fetch de favoritos en paralelo
-    const favoritesPromise = api.get('/api/favoritos/').then(res => res.data.map(fav => fav.articulo));
+    const favoritesPromise = api.get('/api/favoritos/', { signal }).then(res => res.data.map(fav => fav.articulo));
 
     const params = {
       page: currentPage.value,
@@ -427,10 +437,13 @@ const fetchArticulos = async () => {
       params.oferta = 1
     }
 
-    const responsePromise = api.get('/api/articulos/', { params });
+    const responsePromise = api.get('/api/articulos/', { params, signal, timeout: 30000 });
 
     // Esperar ambas respuestas
     const [articulosResponse, favoriteArticuloIds] = await Promise.all([responsePromise, favoritesPromise]);
+
+    // Si mientras tanto arrancó otro fetch (click rápido), ignorar esta respuesta
+    if (seq !== listSeq) return;
 
     const fetchedArticulos = articulosResponse.data.results;
 
@@ -464,10 +477,11 @@ const fetchArticulos = async () => {
 
     // Ya no mostramos modal de ofertas desde la UI
   } catch (err) {
+    if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
     showNotification('No se pudieron cargar los artículos. Intente más tarde.', 'error');
     console.error('Error al cargar artículos:', err);
   } finally {
-    loading.value = false;
+    if (seq === listSeq) loading.value = false;
   }
 };
 
@@ -554,7 +568,7 @@ async function flushPreciosLote() {
   try {
     const payload = { claves, modalidad: modalidad.value, con_impuestos: conImpuestos.value }
     if (condicionPago.value !== '' && condicionPago.value != null) payload.condicion_pago = condicionPago.value
-    const post = api.post('/api/consultar-precios-lote/', payload)
+    const post = api.post('/api/consultar-precios-lote/', payload, { timeout: 45000 })
     const { data } = await Promise.race([
       post,
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout precios lote')), 20000)),
