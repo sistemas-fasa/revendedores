@@ -536,8 +536,11 @@ function programarFlushPrecios(registrar = false) {
 }
 
 async function flushPreciosLote(registrar = false) {
-  const claves = [...colaPrecios].filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
+  // Vaciar PRIMERO: necesitaPrecio excluye lo que está en cola, así que
+  // filtrar antes del clear dejaba siempre la lista vacía (bug silencioso).
+  const pendientes = [...colaPrecios]
   colaPrecios.clear()
+  const claves = pendientes.filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
   if (!claves.length) return
   claves.forEach((c) => {
     const a = articulos.value.find((x) => x.clave === c)
