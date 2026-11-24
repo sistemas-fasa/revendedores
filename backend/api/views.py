@@ -860,9 +860,9 @@ def consultar_precio(request):
 def consultar_precios_lote(request):
     """Precios en lote para auto-carga por visibilidad.
 
-    Body: {claves: [...max 50], modalidad, con_impuestos, condicion_pago?}.
+    Body: {claves: [...max 50], modalidad, con_impuestos, condicion_pago?, registrar?}.
     Registra una ConsultaPrecio por artículo encontrado (igual que el clic
-    individual), así el tracking de interés y oportunidades siguen andando.
+    individual), salvo registrar=false (auto-carga masiva sin ensuciar el tracking).
     """
     try:
         from .services.precios import calcular_precio_articulo
@@ -890,6 +890,7 @@ def consultar_precios_lote(request):
         modalidad = data.get('modalidad') or 'retira'
         con_impuestos = data.get('con_impuestos', True)
         condicion_pago_id = data.get('condicion_pago') or (cliente.condicion_pago.id if cliente.condicion_pago else None)
+        registrar = data.get('registrar', True)
 
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         ip_address = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
@@ -915,7 +916,7 @@ def consultar_precios_lote(request):
                 continue
             consultas.append(ConsultaPrecio(usuario=request.user, articulo=articulo,
                                             ip_address=ip_address))
-        if consultas:
+        if registrar and consultas:
             ConsultaPrecio.objects.bulk_create(consultas)
 
         return Response({'success': True, 'precios': precios})

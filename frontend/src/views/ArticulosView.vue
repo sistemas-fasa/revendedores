@@ -461,18 +461,9 @@ const fetchArticulos = async () => {
 
     updateSuggestions();
 
-    // Red de seguridad: si el observer por visibilidad no encoló nada
-    // (navegador raro, refs no disparadas), pedir igual los pendientes.
-    // Si el observer anda, necesitaPrecio ya es false y esto no hace nada.
-    setTimeout(() => {
-      let extra = 0
-      articulos.value.forEach((a) => {
-        if (extra < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); extra++ }
-      })
-      if (extra) {
-        programarFlushPrecios()
-      }
-    }, 2500);
+    // Precios automáticos: pedir ya los que falten (una sola request en lote,
+    // sin registrar interés; el interés se loguea en acciones reales).
+    pedirPreciosFaltantes();
 
     // Ya no mostramos modal de ofertas desde la UI
   } catch (err) {
@@ -515,39 +506,33 @@ const toggleFavorite = async (articulo) => {
   }
 };
 
-// === PRECIOS AUTOMÁTICOS POR VISIBILIDAD ===
-// El precio se pide solo cuando la tarjeta entra en pantalla y sigue visible
-// 1 segundo (dwell): rápido para el cliente y registra interés real.
-const PRECIOS_VISTOS_KEY = 'precios_vistos'
-let preciosVistosSet = new Set()
-try { sessionStorage.removeItem(PRECIOS_VISTOS_KEY) } catch (e) {}
+// === PRECIOS AUTOMÁTICOS ===
+// Al terminar cada listado se piden los precios faltantes en lote (rápido,
+// una sola request). NO registra interés: eso se loguea solo en acciones
+// reales (agregar al pedido) vía logInteresPrecio, una vez por sesión.
+const preciosVistosSet = new Set()
 const colaPrecios = new Set()
-const dwellTimers = new Map()
-const visiblesAhora = new Set()
 let flushPreciosTimer = null
-let precioObserver = null
-
-// Vistos SOLO en memoria (por carga de página): persistirlo en sessionStorage
-// bloqueaba la recarga en visitas siguientes (artículos frescos sin precio
-// + clave ya marcada = shimmer eterno). El re-registro por recarga es
-// despreciable frente a romper la vista.
-
-function persistirPreciosVistos() {
-  // Sin persistencia (ver nota arriba): solo limpia restos viejos.
-  try { sessionStorage.removeItem(PRECIOS_VISTOS_KEY) } catch (e) {}
-}
+const INTERES_LOGUEADO_KEY = 'interes_logueado'
+let interesLogueado = new Set()
+try { interesLogueado = new Set(JSON.parse(sessionStorage.getItem(INTERES_LOGUEADO_KEY) || '[]')) } catch (e) {}
 
 function necesitaPrecio(art) {
   return art && !art.mostrar_precio && !art.precio_lista && !art.consultandoPrecio && !art.precioError
     && !preciosVistosSet.has(art.clave) && !colaPrecios.has(art.clave)
 }
 
-function programarFlushPrecios() {
-  if (flushPreciosTimer) return
-  flushPreciosTimer = setTimeout(() => { flushPreciosTimer = null; flushPreciosLote() }, 400)
+function programarFlushPrecios(registrar = false) {
+  if (flushPreciosTimer) {
+    flushPreciosTimer._registrar = flushPreciosTimer._registrar || registrar
+    return
+  }
+  const t = setTimeout(() => { flushPreciosTimer = null; flushPreciosLote(t._registrar) }, 400)
+  t._registrar = registrar
+  flushPreciosTimer = t
 }
 
-async function flushPreciosLote() {
+async function flushPreciosLote(registrar = false) {
   const claves = [...colaPrecios].filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
   colaPrecios.clear()
   if (!claves.length) return
@@ -556,7 +541,7 @@ async function flushPreciosLote() {
     if (a) a.consultandoPrecio = true
   })
   try {
-    const payload = { claves, modalidad: modalidad.value, con_impuestos: conImpuestos.value }
+    const payload = { claves, modalidad: modalidad.value, con_impuestos: conImpuestos.value, registrar }
     if (condicionPago.value !== '' && condicionPago.value != null) payload.condicion_pago = condicionPago.value
     const post = api.post('/api/consultar-precios-lote/', payload, { timeout: 45000 })
     const { data } = await Promise.race([
@@ -576,7 +561,6 @@ async function flushPreciosLote() {
       }
       preciosVistosSet.add(c)
     })
-    persistirPreciosVistos()
   } catch (err) {
     console.error('Error al consultar precios en lote:', err)
     claves.forEach((c) => {
@@ -586,51 +570,41 @@ async function flushPreciosLote() {
   }
 }
 
+// Pide ya los precios de todo lo renderizado sin precio (llamar sincrónico
+// tras cada listado: no depende de observers ni timers para arrancar).
+function pedirPreciosFaltantes() {
+  let n = 0
+  articulos.value.forEach((a) => {
+    if (n < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); n++ }
+  })
+  if (n) programarFlushPrecios(false)
+}
+
+// Pide ya los precios de todo lo renderizado sin precio (llamar sincrónico
+// tras cada listado: no depende de observers ni timers para arrancar).
+function pedirPreciosFaltantes() {
+  let n = 0
+  articulos.value.forEach((a) => {
+    if (n < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); n++ }
+  })
+  if (n) programarFlushPrecios(false)
+}
+
 function reintentarPrecio(art) {
   art.precioError = false
   preciosVistosSet.delete(art.clave)
-  persistirPreciosVistos()
-  if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
+  if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios(false) }
 }
 
-// OJO: este callback corre en cada render (la arrow se recrea) →
-// NUNCA mutar estado reactivo acá adentro: genera un loop infinito
-// de renders que cuelga la pestaña.
-function observarTarjeta(el, art) {
-  if (!el || !art) return
-  if (el.__observada === art.clave) return
-  if (!('IntersectionObserver' in window)) {
-    if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
-    return
-  }
-  if (!necesitaPrecio(art)) return
-  if (!precioObserver) {
-    precioObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        const clave = entry.target.__clave
-        if (!clave) return
-        if (entry.isIntersecting) {
-          visiblesAhora.add(clave)
-          if (!dwellTimers.has(clave)) {
-            dwellTimers.set(clave, setTimeout(() => {
-              dwellTimers.delete(clave)
-              if (!visiblesAhora.has(clave)) return
-              const actual = articulos.value.find((a) => a.clave === clave)
-              if (!necesitaPrecio(actual)) return
-              colaPrecios.add(clave)
-              programarFlushPrecios()
-            }, 1000))
-          }
-        } else {
-          visiblesAhora.delete(clave)
-          if (dwellTimers.has(clave)) { clearTimeout(dwellTimers.get(clave)); dwellTimers.delete(clave) }
-        }
-      })
-    }, { rootMargin: '200px', threshold: 0 })
-  }
-  el.__clave = art.clave
-  el.__observada = art.clave
-  precioObserver.observe(el)
+// Interés real (agregar al pedido): loguea UNA vez por sesión vía el endpoint
+// individual, sin tocar la UI (el precio ya está visible).
+function logInteresPrecio(art) {
+  if (!art || interesLogueado.has(art.clave)) return
+  interesLogueado.add(art.clave)
+  try { sessionStorage.setItem(INTERES_LOGUEADO_KEY, JSON.stringify([...interesLogueado].slice(-1000))) } catch (e) {}
+  const payload = { articulo_clave: art.clave, modalidad: modalidad.value, con_impuestos: conImpuestos.value }
+  if (condicionPago.value !== '' && condicionPago.value != null) payload.condicion_pago = condicionPago.value
+  api.post('/api/consultar-precio/', payload).catch(() => {})
 }
 
 // === CONSULTAR PRECIO INDIVIDUAL (fallback / reintento puntual) ===
@@ -1158,6 +1132,8 @@ const quickAddToCart = (articulo) => {
   if (!validarStock(articulo, cantidad)) {
     return
   }
+  // Interés real: agregar al pedido loguea la consulta (una vez por sesión)
+  logInteresPrecio(articulo)
   const existing = getCartItem(articulo)
   if (existing) {
     cart.updateQuantity(articulo.clave, cantidad)
@@ -1197,11 +1173,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (precioObserver) { precioObserver.disconnect(); precioObserver = null }
   if (flushPreciosTimer) { clearTimeout(flushPreciosTimer); flushPreciosTimer = null }
-  dwellTimers.forEach((t) => clearTimeout(t))
-  dwellTimers.clear()
-  visiblesAhora.clear()
   colaPrecios.clear()
 })
 </script>
@@ -1451,7 +1423,6 @@ onUnmounted(() => {
           <div
             v-for="art in articulos"
             :key="art.clave"
-            :ref="(el) => observarTarjeta(el, art)"
             :class="[
               'relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'bg-yellow-50 border border-yellow-300 opacity-95' : '',
@@ -1595,7 +1566,6 @@ onUnmounted(() => {
           <article
             v-for="art in articulos"
             :key="art.clave"
-            :ref="(el) => observarTarjeta(el, art)"
             :class="[
               'overflow-hidden rounded-lg border shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'border-yellow-300 bg-yellow-50' : '',

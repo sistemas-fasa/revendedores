@@ -63,3 +63,9 @@ class PreciosLoteTests(TestCase):
         self.assertIn(resp.status_code, (401, 403))
         resp = self._post(self.user, {"claves": []})
         self.assertEqual(resp.status_code, 400)
+
+    def test_lote_sin_registrar_no_crea_consultas(self):
+        resp = self._post(self.user, {"claves": ["A001", "A002"], "registrar": False})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(set(resp.data["precios"]), {"A001", "A002"})
+        self.assertEqual(ConsultaPrecio.objects.filter(usuario=self.user).count(), 0)
