@@ -45,6 +45,7 @@ MAX_ARTICULOS_MAIL = 5
 EMPRESA_ID = 1
 QUIEN_ENVIA = "ventas@ferreteriaavenida.com.ar"
 PORTAL_URL = "https://ventas.ferreteriaavenida.com.ar/productos?oferta=1"
+PORTAL_BASE = "https://ventas.ferreteriaavenida.com.ar"
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 _IDENT_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
@@ -395,11 +396,56 @@ def _fmt_fecha(fecha: date | None) -> str | None:
     return fecha.strftime("%d/%m/%Y") if fecha else None
 
 
-def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
+def generar_tracking(
+    email: str,
+    campaign: str,
+    url: str = PORTAL_URL,
+    *,
+    timeout: int = 10,
+) -> dict[str, str | None]:
+    """Pide link corto + token de píxel al portal (endpoints públicos).
+
+    Si algo falla devuelve Nones y el mail sale con links directos.
+    """
+    import json
+    import urllib.request
+
+    resultado: dict[str, str | None] = {"cta": None, "pixel": None}
+    payload = json.dumps(
+        {"url": url, "email": email, "campaign": campaign}).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{PORTAL_BASE}/api/track-shorten/",
+            data=payload, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            short_url = resp.read().decode("utf-8").strip()
+        if short_url.startswith("http"):
+            resultado["cta"] = short_url
+    except Exception as exc:  # noqa: BLE001 - el mail sale igual, sin tracking
+        print(f"AVISO tracking link {email}: {exc}")
+    try:
+        req = urllib.request.Request(
+            f"{PORTAL_BASE}/api/track-token/",
+            data=payload, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            token = resp.read().decode("utf-8").strip()
+        if token:
+            resultado["pixel"] = f"{PORTAL_BASE}/api/track-pixel/?t={token}"
+    except Exception as exc:  # noqa: BLE001
+        print(f"AVISO tracking pixel {email}: {exc}")
+    return resultado
+
+
+def mail_cliente(mail: dict[str, Any],
+                 tracking: dict[str, str | None] | None = None) -> tuple[str, str, str]:
     """(asunto, texto, html) del mail. Sin emojis: la cola es latin1."""
     def esc(value: Any) -> str:
         return (str(value).replace("&", "&amp;").replace("<", "&lt;")
                 .replace(">", "&gt;"))
+
+    tracking = tracking or {}
+    cta_url = tracking.get("cta") or PORTAL_URL
+    pixel_url = tracking.get("pixel")
 
     nombre = mail["cliente"] or "cliente"
     arts = mail["articulos"]
@@ -445,7 +491,7 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
 <div style="font-size:12px;color:#6b7280;margin:0 0 4px 0">Cód. {esc(a['clave'])}"""
         + (f""" <span style="display:inline-block;background:#fef3c2;color:#92400e;font-size:11px;font-weight:bold;padding:2px 8px;border-radius:10px;margin-left:6px">Válida hasta {esc(a['vence'])}</span>""" if a.get("vence") else "")
         + f"""</div>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px"><tr><td style="background:#b91c1c;border-radius:4px"><a href="{PORTAL_URL}" style="display:inline-block;padding:9px 18px;font-size:13px;font-weight:bold;color:#ffffff;text-decoration:none">Ver mi precio</a></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px"><tr><td style="background:#b91c1c;border-radius:4px"><a href="{cta_url}" style="display:inline-block;padding:9px 18px;font-size:13px;font-weight:bold;color:#ffffff;text-decoration:none">Ver mi precio</a></td></tr></table>
 </td></tr></table>"""
         for a in arts
     )
@@ -461,7 +507,7 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
 <p style="font-size:15px;color:#111827;margin:0 0 8px 0">Hola {esc(nombre)},</p>
 <p style="font-size:14px;color:#374151;margin:0 0 16px 0">{bajada_html}</p>
 {tarjetas}
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 8px auto"><tr><td align="center" style="background:#1d4ed8;border-radius:4px"><a href="{PORTAL_URL}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none">Ver todas mis ofertas</a></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 8px auto"><tr><td align="center" style="background:#1d4ed8;border-radius:4px"><a href="{cta_url}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none">Ver todas mis ofertas</a></td></tr></table>
 <p style="font-size:13px;color:#6b7280;margin:16px 0 0 0">Si querés que te los preparemos, o necesitás precio por cantidad, <strong>respondé este mail</strong> y te contactamos.</p>
 </td></tr>
 <tr><td style="background:#f9fafb;padding:16px 24px;border-top:1px solid #e5e7eb">
@@ -469,6 +515,7 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
 </td></tr>
 </table>
 </td></tr></table>
+""" + (f'<img src="{esc(pixel_url)}" width="1" height="1" style="display:none" alt="">' if pixel_url else "") + """
 </body></html>"""
     return asunto, texto, html
 
@@ -478,13 +525,20 @@ def encolar_mails_clientes(
     *,
     runtime: dict[str, Any],
     now: datetime | None = None,
+    campaign: str | None = None,
+    con_tracking: bool = True,
 ) -> int:
     """Encola cada mail en fe y registra lo ofrecido (una transacción por mail)."""
     now_utc = (now or datetime.now(LOCAL_TZ)).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    if campaign is None:
+        campaign = "ofertas-" + (now or datetime.now(LOCAL_TZ)).strftime("%Y%m%d")
     cola = fe_table("emails_pendientes")
     enviados = 0
     for mail in mails:
-        asunto, texto, html = mail_cliente(mail)
+        tracking = generar_tracking(mail["email"], campaign) if con_tracking else {}
+        asunto, texto, html = mail_cliente(mail, tracking or None)
+        if tracking.get("cta"):
+            mail["link_trackeado"] = tracking["cta"]
         stmts: list[tuple[str, tuple[Any, ...]]] = [(
             f"INSERT INTO {cola} (destinatario, quien_envia, asunto, cuerpo_html, "
             "cuerpo_texto, intentos, estado, creado_en, empresa_id) "
@@ -520,6 +574,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="destinatario del reporte (repite la opción)")
     parser.add_argument("--enviar", action="store_true",
                         help="encola los mails a clientes (sin esto solo muestra)")
+    parser.add_argument("--sin-tracking", action="store_true",
+                        help="no pedir links/píxel trackeados al portal")
     parser.add_argument("--env", default=None,
                         help="usar las credenciales de este .env en vez de la conexión "
                              "del legado; para probar desde una PC")
@@ -559,7 +615,8 @@ def main(argv: list[str] | None = None) -> int:
         print(texto)
 
     if mails and args.enviar:
-        n = encolar_mails_clientes(mails, runtime=runtime, now=now)
+        n = encolar_mails_clientes(mails, runtime=runtime, now=now,
+                                   con_tracking=not args.sin_tracking)
         print(f"MAILS A CLIENTES ENCOLADOS: {n}/{len(mails)}")
 
     if args.to and not args.enviar:

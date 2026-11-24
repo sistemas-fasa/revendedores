@@ -158,3 +158,52 @@ def test_fallback_respeta_cooldown_cliente():
     mails = plan_mails_fallback(todos, top, _runtime(previas=previas),
                                 ya_atendidos=set(), now=NOW)
     assert [m["numero"] for m in mails] == ["00040"]
+
+
+def test_mail_con_tracking_usa_link_corto_y_pixel(monkeypatch):
+    import ops.automatizaciones.ofertas_por_compra as mod
+    monkeypatch.setattr(mod, "generar_tracking", lambda email, campaign, url=None, **k: {
+        "cta": "https://ventas.ferreteriaavenida.com.ar/api/t/AbC123/",
+        "pixel": "https://ventas.ferreteriaavenida.com.ar/api/track-pixel/?t=TOK",
+    })
+    mails = plan_mails(fetch_candidatos(_runtime(), dias_compras=90, now=NOW),
+                       _runtime(), now=NOW)
+    ejecutados = []
+
+    def fake_batch(stmts):
+        ejecutados.append(stmts)
+
+    n = encolar_mails_clientes(mails, runtime={"query": lambda s, p: [], "execute_batch": fake_batch},
+                               now=NOW)
+    assert n == 2
+    html = ejecutados[0][0][1][3]
+    assert "/api/t/AbC123/" in html
+    assert "/api/track-pixel/?t=TOK" in html
+    assert mails[0].get("link_trackeado", "").endswith("/api/t/AbC123/")
+
+
+def test_mail_sin_tracking_usa_links_directos():
+    mails = plan_mails(fetch_candidatos(_runtime(), dias_compras=90, now=NOW),
+                       _runtime(), now=NOW)
+    asunto, texto, html = mail_cliente(mails[0], None)
+    assert "productos?oferta=1" in html
+    assert "track-pixel" not in html
+
+
+def test_tracking_con_fallo_igual_encola(monkeypatch):
+    import ops.automatizaciones.ofertas_por_compra as mod
+    # portal caído: sin cta ni pixel -> links directos, el mail sale igual
+    monkeypatch.setattr(mod, "generar_tracking",
+                        lambda email, campaign, url=None, **k: {"cta": None, "pixel": None})
+    mails = plan_mails(fetch_candidatos(_runtime(), dias_compras=90, now=NOW),
+                       _runtime(), now=NOW)
+    ejecutados = []
+
+    def fake_batch(stmts):
+        ejecutados.append(stmts)
+
+    n = encolar_mails_clientes(mails, runtime={"query": lambda s, p: [], "execute_batch": fake_batch},
+                               now=NOW)
+    assert n == 2
+    assert "productos?oferta=1" in ejecutados[0][0][1][3]
+    assert "track-pixel" not in ejecutados[0][0][1][3]
