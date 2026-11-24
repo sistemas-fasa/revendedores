@@ -422,7 +422,10 @@ def generar_tracking(
                 data=payload, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 short_url = resp.read().decode("utf-8").strip()
-            if short_url.startswith("http"):
+            if short_url.startswith("http://"):
+                # El portal lo genera con el esquema interno; en público es https
+                short_url = "https://" + short_url[len("http://"):]
+            if short_url.startswith("https://"):
                 resultado["cta"] = short_url
         except Exception as exc:  # noqa: BLE001 - el mail sale igual, sin tracking
             print(f"AVISO tracking link {email}: {exc}")
