@@ -185,14 +185,21 @@ def fetch_candidatos(
         return []
 
     ofertas = q(
-        "SELECT clave, nombre FROM api_articulos "
+        "SELECT clave, nombre, vencimiento_oferta FROM api_articulos "
         "WHERE empresa_id = %s AND oferta = 'S' "
         "AND COALESCE(discontinuado, '') != 'S' "
         "AND COALESCE(stock_efectivo, stock, 0) > 0",
         (EMPRESA_ID,),
     )
-    en_oferta = {str(clave or "").strip(): str(nombre or "").strip()
-                 for clave, nombre in ofertas}
+    en_oferta = {}
+    for clave, nombre, vence in ofertas:
+        clave = str(clave or "").strip()
+        if not clave:
+            continue
+        en_oferta[clave] = {
+            "nombre": _limpiar_nombre(str(nombre or "").strip()),
+            "vence": _fmt_fecha(_to_local_date(vence)),
+        }
 
     candidatos: list[dict[str, Any]] = []
     for cliente_id, numero, nombre, email, recibe in clientes:
@@ -204,9 +211,11 @@ def fetch_candidatos(
         for c in por_numero.get(numero, []):
             if c["clave"] not in en_oferta:
                 continue
+            of = en_oferta[c["clave"]]
             articulos.append({
                 "clave": c["clave"],
-                "articulo": en_oferta[c["clave"]],
+                "articulo": of["nombre"],
+                "vence": of["vence"],
                 "veces": c["veces"],
                 "ultima_compra": (c["ultima_compra"].isoformat()
                                   if c["ultima_compra"] else None),
@@ -266,6 +275,16 @@ def plan_mails(
     return mails
 
 
+def _limpiar_nombre(nombre: str) -> str:
+    """Saca el sufijo ' (OFERTA)' que trae el ERP para mostrarlo limpio."""
+    texto = re.sub(r"\s*\(OFERTA\)\s*$", "", nombre, flags=re.IGNORECASE)
+    return texto.strip() or nombre
+
+
+def _fmt_fecha(fecha: date | None) -> str | None:
+    return fecha.strftime("%d/%m/%Y") if fecha else None
+
+
 def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
     """(asunto, texto, html) del mail. Sin emojis: la cola es latin1."""
     def esc(value: Any) -> str:
@@ -279,7 +298,12 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
     else:
         asunto = "Ofertas en artículos que comprás habitualmente"
 
-    lineas = [f"  - {a['articulo'] or a['clave']} (cód. {a['clave']})" for a in arts]
+    lineas = []
+    for a in arts:
+        linea = f"  - {a['articulo'] or a['clave']} (cód. {a['clave']})"
+        if a.get("vence"):
+            linea += f" - válida hasta {a['vence']}"
+        lineas.append(linea)
     texto = (
         f"Hola {nombre},\n\n"
         "Estos artículos que comprás habitualmente están en oferta "
@@ -291,23 +315,38 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
         "Saludos,\nVentas - Ferretería Avenida\n\n"
         "Si no querés recibir estas sugerencias, respondé BAJA.\n"
     )
-    filas = "".join(
-        f"<li><strong>{esc(a['articulo'] or a['clave'])}</strong> "
-        f"<span style=\"color:#777\">(cód. {esc(a['clave'])})</span></li>"
+    tarjetas = "".join(
+        f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px 0;background:#ffffff;border:1px solid #e5e7eb;border-left:4px solid #b91c1c;border-radius:6px">
+<tr><td style="padding:14px 16px">
+<div style="font-size:15px;font-weight:bold;color:#111827;margin:0 0 4px 0">{esc(a['articulo'] or a['clave'])}</div>
+<div style="font-size:12px;color:#6b7280;margin:0 0 4px 0">Cód. {esc(a['clave'])}"""
+        + (f""" <span style="display:inline-block;background:#fef3c2;color:#92400e;font-size:11px;font-weight:bold;padding:2px 8px;border-radius:10px;margin-left:6px">Válida hasta {esc(a['vence'])}</span>""" if a.get("vence") else "")
+        + f"""</div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px"><tr><td style="background:#b91c1c;border-radius:4px"><a href="{PORTAL_URL}" style="display:inline-block;padding:9px 18px;font-size:13px;font-weight:bold;color:#ffffff;text-decoration:none">Ver mi precio</a></td></tr></table>
+</td></tr></table>"""
         for a in arts
     )
-    html = f"""<html><body style="font-family:Arial,sans-serif;background:#f6f7f9;padding:20px">
-<div style="max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px">
-<p>Hola {esc(nombre)},</p>
-<p>Estos artículos que comprás habitualmente están
-<strong>en oferta</strong> esta semana:</p>
-<ul>{filas}</ul>
-<p>Si querés que te los preparemos, o necesitás precio por cantidad,
-<strong>respondé este mail</strong> y te contactamos.</p>
-<p><a href="{PORTAL_URL}" style="background:#1565c0;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none">Ver todas las ofertas</a></p>
-<p>Saludos,<br>Ventas - Ferretería Avenida</p>
-<p style="color:#999;font-size:11px;margin-top:24px">Si no querés recibir estas sugerencias, respondé BAJA a este mail.</p>
-</div></body></html>"""
+    html = f"""<html><body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">Ofertas en artículos que comprás habitualmente, solo por esta semana.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:20px 10px"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden">
+<tr><td style="background:#b91c1c;padding:22px 24px;text-align:left">
+<div style="font-size:20px;font-weight:bold;color:#ffffff;margin:0">Ferretería Avenida</div>
+<div style="font-size:13px;color:#fecaca;margin:4px 0 0 0">Portal de clientes &bull; Ofertas para vos</div>
+</td></tr>
+<tr><td style="padding:24px">
+<p style="font-size:15px;color:#111827;margin:0 0 8px 0">Hola {esc(nombre)},</p>
+<p style="font-size:14px;color:#374151;margin:0 0 16px 0">Estos artículos que comprás habitualmente están <strong>en oferta</strong> esta semana:</p>
+{tarjetas}
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 8px auto"><tr><td align="center" style="background:#1d4ed8;border-radius:4px"><a href="{PORTAL_URL}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none">Ver todas mis ofertas</a></td></tr></table>
+<p style="font-size:13px;color:#6b7280;margin:16px 0 0 0">Si querés que te los preparemos, o necesitás precio por cantidad, <strong>respondé este mail</strong> y te contactamos.</p>
+</td></tr>
+<tr><td style="background:#f9fafb;padding:16px 24px;border-top:1px solid #e5e7eb">
+<p style="font-size:11px;color:#9ca3af;margin:0">Ventas - Ferretería Avenida &bull; Respondé BAJA si no querés recibir estas sugerencias.</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
     return asunto, texto, html
 
 

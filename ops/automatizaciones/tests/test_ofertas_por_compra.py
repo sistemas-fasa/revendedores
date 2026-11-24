@@ -30,10 +30,10 @@ CLIENTES = [
     (30, "00099", "Cliente Baja", "baja@ejemplo.com", 0),
 ]
 
-# clave, nombre (solo ofertas vigentes con stock y no discontinuadas)
+# clave, nombre, vencimiento (solo ofertas vigentes con stock y no discontinuadas)
 OFERTAS = [
-    ("CEM001", "CEMENTO 50KG"),
-    ("HIE003", "HIERRO 8"),
+    ("CEM001", "CEMENTO 50KG (OFERTA)", date(2026, 11, 30)),
+    ("HIE003", "HIERRO 8", None),
 ]
 
 
@@ -100,6 +100,13 @@ def test_mail_menciona_compras_y_portal_con_baja():
     assert "BAJA" in texto
     assert "oferta=1" in html
     assert "compr" in texto.lower()
+    # disenio: marca, CTA por articulo, nombre limpio y vencimiento
+    assert "Ferretería Avenida" in html
+    assert "Ver mi precio" in html
+    assert "Ver todas mis ofertas" in html
+    assert "(OFERTA)" not in html
+    assert "30/11/2026" in html
+    assert "30/11/2026" in texto
 
 
 def test_encolar_registra_oferta_y_cola(monkeypatch):
