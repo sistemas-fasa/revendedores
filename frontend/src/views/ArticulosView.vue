@@ -562,7 +562,9 @@ const fetchFormasPago = async () => {
 }
 
 // === DEBOUNCE EN BÚSQUEDA ===
+let syncingFromRoute = false
 watch(searchQuery, () => {
+  if (syncingFromRoute) return
   if (searchTimeout) clearTimeout(searchTimeout)
 
   if (!searchQuery.value.trim()) {
@@ -594,6 +596,19 @@ watch([modalidad, conImpuestos], () => {
 
 // Si cambia la query `discontinuados`, recargar artículos
 watch(() => route.query.discontinuados, () => {
+  currentPage.value = 1
+  fetchArticulos()
+})
+
+// Query `buscar`: link directo a un artículo (ej. desde un mail).
+// Sincroniza el input de búsqueda sin pelear con el debounce del usuario.
+watch(() => route.query.buscar, (val) => {
+  const next = typeof val === 'string' ? val : ''
+  if (next === searchQuery.value) return
+  if (searchTimeout) clearTimeout(searchTimeout)
+  syncingFromRoute = true
+  searchQuery.value = next
+  syncingFromRoute = false
   currentPage.value = 1
   fetchArticulos()
 })
@@ -652,6 +667,10 @@ const changePage = (page) => {
 const clearSearch = () => {
   searchQuery.value = ''
   currentPage.value = 1
+  // Sacar `buscar` de la URL para que un refresh no la reaplique
+  if (route.query.buscar !== undefined) {
+    router.replace({ path: route.path, query: { ...route.query, buscar: undefined } })
+  }
   fetchArticulos()
 }
 
@@ -1014,6 +1033,12 @@ onMounted(async () => {
   // (última selección o condición del cliente) y recién después
   // pedir artículos con precios correctos.
   await fetchFormasPago()
+  // Link directo a un artículo (?buscar=CLAVE): precargar la búsqueda
+  if (typeof route.query.buscar === 'string' && route.query.buscar) {
+    syncingFromRoute = true
+    searchQuery.value = route.query.buscar
+    syncingFromRoute = false
+  }
   await fetchArticulos()
 
   if (route.query.discontinuados) {

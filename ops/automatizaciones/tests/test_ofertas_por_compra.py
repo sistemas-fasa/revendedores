@@ -162,10 +162,15 @@ def test_fallback_respeta_cooldown_cliente():
 
 def test_mail_con_tracking_usa_link_corto_y_pixel(monkeypatch):
     import ops.automatizaciones.ofertas_por_compra as mod
-    monkeypatch.setattr(mod, "generar_tracking", lambda email, campaign, url=None, **k: {
-        "cta": "https://ventas.ferreteriaavenida.com.ar/api/t/AbC123/",
-        "pixel": "https://ventas.ferreteriaavenida.com.ar/api/track-pixel/?t=TOK",
-    })
+
+    def fake_tracking(email, campaign, url=None, **k):
+        if url and "buscar=" in url:
+            return {"cta": "https://ventas.ferreteriaavenida.com.ar/api/t/ART123/",
+                    "pixel": None}
+        return {"cta": "https://ventas.ferreteriaavenida.com.ar/api/t/ALL456/",
+                "pixel": "https://ventas.ferreteriaavenida.com.ar/api/track-pixel/?t=TOK"}
+
+    monkeypatch.setattr(mod, "generar_tracking", fake_tracking)
     mails = plan_mails(fetch_candidatos(_runtime(), dias_compras=90, now=NOW),
                        _runtime(), now=NOW)
     ejecutados = []
@@ -177,9 +182,13 @@ def test_mail_con_tracking_usa_link_corto_y_pixel(monkeypatch):
                                now=NOW)
     assert n == 2
     html = ejecutados[0][0][1][3]
-    assert "/api/t/AbC123/" in html
+    assert "/api/t/ART123/" in html  # ver mi precio por articulo
+    assert "/api/t/ALL456/" in html  # ver todas
     assert "/api/track-pixel/?t=TOK" in html
-    assert mails[0].get("link_trackeado", "").endswith("/api/t/AbC123/")
+    assert mails[0].get("link_trackeado", "").endswith("/api/t/ALL456/")
+    # version texto plano tambien lleva links (cortos) por articulo
+    texto = ejecutados[0][0][1][4]
+    assert "/api/t/ART123/" in texto
 
 
 def test_mail_sin_tracking_usa_links_directos():
@@ -187,6 +196,8 @@ def test_mail_sin_tracking_usa_links_directos():
                        _runtime(), now=NOW)
     asunto, texto, html = mail_cliente(mails[0], None)
     assert "productos?oferta=1" in html
+    assert "buscar=CEM001" in html
+    assert "buscar=CEM001" in texto
     assert "track-pixel" not in html
 
 

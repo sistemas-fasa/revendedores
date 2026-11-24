@@ -125,7 +125,8 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
+    // Guardar destino para volver después del login (links de mails, etc.)
+    next({ path: '/login', query: { redirect: to.fullPath } })
   } else if (to.name === 'dashboard' && authStore.isAuthenticated && !authStore.user?.is_staff) {
     next('/productos')
   } else if (to.meta.requiresStaff && (!authStore.isAuthenticated || !authStore.user || !authStore.user.is_staff)) {
@@ -133,12 +134,20 @@ router.beforeEach((to, from, next) => {
     Swal.fire({ icon: 'error', title: 'Acceso denegado', text: 'Solo el personal autorizado puede acceder a esta área.' })
     next('/productos'); // Redirect to the main buying surface
   } else if (to.name === 'login' && authStore.isAuthenticated) {
-    next('/productos')
+    next(safeRedirect(to.query.redirect) || '/productos')
   } else if (to.name === 'activar-cuenta' && authStore.isAuthenticated) {
     next('/productos')
   } else {
     next()
   }
 })
+
+// Solo rutas internas (evita open redirect vía ?redirect=)
+function safeRedirect(value) {
+  if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) {
+    return value
+  }
+  return null
+}
 
 export default router

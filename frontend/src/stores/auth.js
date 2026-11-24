@@ -90,7 +90,12 @@ export const useAuthStore = defineStore('auth', () => {
     // Emitir evento global para notificar que el usuario inició sesión
     try { window.dispatchEvent(new Event('user-logged-in')) } catch (e) { /* ignore */ }
 
-    router.push('/productos')
+    // Volver al destino original (ej. link de un mail) o al catálogo
+    const raw = router.currentRoute.value.query.redirect
+    const dest = (typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//'))
+      ? raw
+      : '/productos'
+    router.push(dest)
   }
 
   // ✅ Acción: logout
