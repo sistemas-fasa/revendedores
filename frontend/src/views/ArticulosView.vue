@@ -514,6 +514,7 @@ const toggleFavorite = async (articulo) => {
 const preciosVistosSet = new Set()
 const colaPrecios = new Set()
 let flushPreciosTimer = null
+let flushPreciosRegistrar = false
 const INTERES_LOGUEADO_KEY = 'interes_logueado'
 let interesLogueado = new Set()
 try { interesLogueado = new Set(JSON.parse(sessionStorage.getItem(INTERES_LOGUEADO_KEY) || '[]')) } catch (e) {}
@@ -524,13 +525,14 @@ function necesitaPrecio(art) {
 }
 
 function programarFlushPrecios(registrar = false) {
-  if (flushPreciosTimer) {
-    flushPreciosTimer._registrar = flushPreciosTimer._registrar || registrar
-    return
-  }
-  const t = setTimeout(() => { flushPreciosTimer = null; flushPreciosLote(t._registrar) }, 400)
-  t._registrar = registrar
-  flushPreciosTimer = t
+  flushPreciosRegistrar = flushPreciosRegistrar || registrar
+  if (flushPreciosTimer) return
+  flushPreciosTimer = setTimeout(() => {
+    flushPreciosTimer = null
+    const r = flushPreciosRegistrar
+    flushPreciosRegistrar = false
+    flushPreciosLote(r)
+  }, 400)
 }
 
 async function flushPreciosLote(registrar = false) {
@@ -1523,7 +1525,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="animate-pulse rounded bg-gray-100 px-4 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio… (v4)</span>
+                      <span v-else>Cargando precio…</span>
                     </div>
                 </div>
                 
@@ -1663,7 +1665,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="ui-button w-full animate-pulse px-3 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio… (v4)</span>
+                      <span v-else>Cargando precio…</span>
                     </div>
                   </div>
 
