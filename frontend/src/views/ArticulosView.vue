@@ -1561,7 +1561,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="animate-pulse rounded bg-gray-100 px-4 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio…</span>
+                      <span v-else>Cargando precio… (v3)</span>
                     </div>
                 </div>
                 
@@ -1702,7 +1702,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="ui-button w-full animate-pulse px-3 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio…</span>
+                      <span v-else>Cargando precio… (v3)</span>
                     </div>
                   </div>
 
