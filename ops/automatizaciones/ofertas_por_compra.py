@@ -1,0 +1,395 @@
+"""Ofertas personalizadas según compras del cliente.
+
+Para cada cliente con email y ``recibe_ofertas_email`` cruza sus compras
+(facturas ``codigo = 'F'`` del ERP en los últimos ``--dias-compras`` días)
+con las ofertas vigentes del portal (``api_articulos.oferta = 'S'`` con
+stock y no discontinuadas) y le escribe ofreciéndole las suyas.
+
+Reglas anti-saturación (igual que oportunidades_miro_no_compro):
+- un mail por cliente cada ``CLIENTE_COOLDOWN_DIAS``;
+- el mismo artículo no se repite hasta ``ARTICULO_COOLDOWN_DIAS``;
+- hasta ``MAX_ARTICULOS_MAIL`` artículos por mail.
+
+Cada artículo ofrecido queda en ``api_ofertaenviada`` (``consultas`` guarda
+las veces que lo compró en la ventana). El envío va por la cola
+``<FE_DB_NAME>.emails_pendientes``.
+
+Uso:
+    ofertas_por_compra.py --dry-run            # muestra lo que mandaría
+    ofertas_por_compra.py --to otro@ejemplo.com --dry-run
+    ofertas_por_compra.py --enviar              # encola de verdad + reporte
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import unicodedata
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+LOCAL_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
+UTC = ZoneInfo("UTC")
+
+DEFAULT_DIAS_COMPRAS = 90
+CLIENTE_COOLDOWN_DIAS = 7
+ARTICULO_COOLDOWN_DIAS = 30
+MAX_ARTICULOS_MAIL = 5
+EMPRESA_ID = 1
+QUIEN_ENVIA = "ventas@ferreteriaavenida.com.ar"
+PORTAL_URL = "https://ventas.ferreteriaavenida.com.ar/productos?oferta=1"
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
+_IDENT_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def _qualified(env_var: str, default_db: str, name: str) -> str:
+    db = os.environ.get(env_var, default_db).strip()
+    if not _IDENT_RE.match(db) or not _IDENT_RE.match(name):
+        raise ValueError(f"nombre de base/tabla inválido: {db!r}.{name!r}")
+    return f"`{db}`.`{name}`"
+
+
+def fasa_table(name: str = "facturas") -> str:
+    return _qualified("FASA_DB_NAME", "fasa", name)
+
+
+def fe_table(name: str = "emails_pendientes") -> str:
+    return _qualified("FE_DB_NAME", "fe", name)
+
+
+def sanitizar_latin1(texto: str) -> str:
+    normalizado = unicodedata.normalize("NFC", str(texto))
+    return normalizado.encode("latin1", errors="replace").decode("latin1")
+
+
+def _to_local_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        aware = value if value.tzinfo else value.replace(tzinfo=UTC)
+        return aware.astimezone(LOCAL_TZ).date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    if not text or text.startswith("0000"):
+        return None
+    try:
+        return datetime.strptime(text[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _read_env(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip("'\"")
+    return values
+
+
+def _load_runtime_local(env_path: Path) -> dict[str, Any]:
+    """Conexión directa con las credenciales del backend (para probar local)."""
+    import pymysql
+
+    env = _read_env(env_path)
+    for key in ("FASA_DB_NAME", "FE_DB_NAME"):
+        if env.get(key) and key not in os.environ:
+            os.environ[key] = env[key]
+    conn = pymysql.connect(
+        host=env.get("DB_HOST") or "localhost",
+        port=int(env.get("DB_PORT") or 3306),
+        user=env["DB_USER"],
+        password=env.get("DB_PASSWORD", ""),
+        database=env["DB_NAME"],
+        charset="utf8mb4",
+        autocommit=True,
+    )
+
+    def query(sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            return list(cur.fetchall())
+
+    def execute_batch(statements: list[tuple[str, tuple[Any, ...]]]) -> None:
+        conn.begin()
+        try:
+            with conn.cursor() as cur:
+                for sql, params in statements:
+                    cur.execute(sql, params)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {"query": query, "execute_batch": execute_batch}
+
+
+def _placeholders(n: int) -> str:
+    return ", ".join(["%s"] * n)
+
+
+def fetch_candidatos(
+    runtime: dict[str, Any],
+    *,
+    dias_compras: int = DEFAULT_DIAS_COMPRAS,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Cruza compras recientes del ERP con ofertas vigentes del portal."""
+    now = now or datetime.now(LOCAL_TZ)
+    q = runtime["query"]
+    desde = (now.astimezone(LOCAL_TZ).date()
+             - timedelta(days=int(dias_compras))).isoformat()
+
+    compras = q(
+        f"SELECT cliente, clave, COUNT(*), MAX(fecha) FROM {fasa_table()} "
+        "WHERE codigo = 'F' AND fecha >= %s "
+        "GROUP BY cliente, clave",
+        (desde,),
+    )
+    por_numero: dict[str, list[dict[str, Any]]] = {}
+    for numero, clave, veces, ultima in compras:
+        numero = str(numero or "").strip()
+        clave = str(clave or "").strip()
+        if not numero or not clave:
+            continue
+        por_numero.setdefault(numero, []).append({
+            "clave": clave,
+            "veces": int(veces or 0),
+            "ultima_compra": _to_local_date(ultima),
+        })
+    if not por_numero:
+        return []
+
+    numeros = sorted(por_numero)
+    try:
+        clientes = q(
+            "SELECT ac.id, ac.numero_cliente, ac.nombre, COALESCE(au.email, ''), "
+            "ac.recibe_ofertas_email FROM api_cliente ac "
+            "JOIN auth_user au ON au.id = ac.user_id "
+            f"WHERE ac.numero_cliente IN ({_placeholders(len(numeros))})",
+            (*numeros,),
+        )
+    except Exception as exc:  # noqa: BLE001
+        if "recibe_ofertas_email" not in str(exc):
+            raise
+        print("AVISO: falta la migración 0041 (recibe_ofertas_email); "
+              "no se enviarán mails a clientes.")
+        return []
+
+    ofertas = q(
+        "SELECT clave, nombre FROM api_articulos "
+        "WHERE empresa_id = %s AND oferta = 'S' "
+        "AND COALESCE(discontinuado, '') != 'S' "
+        "AND COALESCE(stock_efectivo, stock, 0) > 0",
+        (EMPRESA_ID,),
+    )
+    en_oferta = {str(clave or "").strip(): str(nombre or "").strip()
+                 for clave, nombre in ofertas}
+
+    candidatos: list[dict[str, Any]] = []
+    for cliente_id, numero, nombre, email, recibe in clientes:
+        numero = str(numero or "").strip()
+        email = str(email or "").strip()
+        if not recibe or not _EMAIL_RE.match(email):
+            continue
+        articulos = []
+        for c in por_numero.get(numero, []):
+            if c["clave"] not in en_oferta:
+                continue
+            articulos.append({
+                "clave": c["clave"],
+                "articulo": en_oferta[c["clave"]],
+                "veces": c["veces"],
+                "ultima_compra": (c["ultima_compra"].isoformat()
+                                  if c["ultima_compra"] else None),
+            })
+        if not articulos:
+            continue
+        articulos.sort(key=lambda a: (-a["veces"], a["clave"]))
+        candidatos.append({
+            "cliente_id": int(cliente_id),
+            "numero": numero,
+            "cliente": str(nombre or "").strip(),
+            "email": email,
+            "articulos": articulos,
+        })
+    return candidatos
+
+
+def plan_mails(
+    candidatos: list[dict[str, Any]],
+    runtime: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    cliente_cooldown: int = CLIENTE_COOLDOWN_DIAS,
+    articulo_cooldown: int = ARTICULO_COOLDOWN_DIAS,
+    max_articulos: int = MAX_ARTICULOS_MAIL,
+) -> list[dict[str, Any]]:
+    """Aplica cooldowns e historial para no repetir ni saturar."""
+    now = now or datetime.now(LOCAL_TZ)
+    if not candidatos:
+        return []
+    ids = sorted({c["cliente_id"] for c in candidatos})
+    desde_cli = (now - timedelta(days=cliente_cooldown)).astimezone(UTC)
+    desde_art = (now - timedelta(days=articulo_cooldown)).astimezone(UTC)
+    previas = runtime["query"](
+        "SELECT cliente_id, articulo_id, enviado_en FROM api_ofertaenviada "
+        f"WHERE cliente_id IN ({_placeholders(len(ids))}) AND enviado_en >= %s",
+        (*ids, desde_art.strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    ya_ofrecido: set[tuple[int, str]] = set()
+    con_mail_reciente: set[int] = set()
+    for cli_id, art, enviado in previas:
+        ya_ofrecido.add((int(cli_id), str(art or "").strip()))
+        if isinstance(enviado, datetime):
+            aware = enviado if enviado.tzinfo else enviado.replace(tzinfo=UTC)
+            if aware >= desde_cli:
+                con_mail_reciente.add(int(cli_id))
+
+    mails: list[dict[str, Any]] = []
+    for c in candidatos:
+        if c["cliente_id"] in con_mail_reciente:
+            continue
+        elegidos = [a for a in c["articulos"]
+                    if (c["cliente_id"], a["clave"]) not in ya_ofrecido
+                    ][:max_articulos]
+        if elegidos:
+            mails.append({**c, "articulos": elegidos})
+    return mails
+
+
+def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
+    """(asunto, texto, html) del mail. Sin emojis: la cola es latin1."""
+    def esc(value: Any) -> str:
+        return (str(value).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;"))
+
+    nombre = mail["cliente"] or "cliente"
+    arts = mail["articulos"]
+    if len(arts) == 1:
+        asunto = f"Oferta: {arts[0]['articulo'] or arts[0]['clave']}"
+    else:
+        asunto = "Ofertas en artículos que comprás habitualmente"
+
+    lineas = [f"  - {a['articulo'] or a['clave']} (cód. {a['clave']})" for a in arts]
+    texto = (
+        f"Hola {nombre},\n\n"
+        "Estos artículos que comprás habitualmente están en oferta "
+        "esta semana en Ferretería Avenida:\n\n"
+        + "\n".join(lineas)
+        + "\n\nSi querés que te los preparemos, o necesitás precio por cantidad, "
+        "respondé este mail y te contactamos.\n"
+        f"También podés ver todas las ofertas en {PORTAL_URL}\n\n"
+        "Saludos,\nVentas - Ferretería Avenida\n\n"
+        "Si no querés recibir estas sugerencias, respondé BAJA.\n"
+    )
+    filas = "".join(
+        f"<li><strong>{esc(a['articulo'] or a['clave'])}</strong> "
+        f"<span style=\"color:#777\">(cód. {esc(a['clave'])})</span></li>"
+        for a in arts
+    )
+    html = f"""<html><body style="font-family:Arial,sans-serif;background:#f6f7f9;padding:20px">
+<div style="max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px">
+<p>Hola {esc(nombre)},</p>
+<p>Estos artículos que comprás habitualmente están
+<strong>en oferta</strong> esta semana:</p>
+<ul>{filas}</ul>
+<p>Si querés que te los preparemos, o necesitás precio por cantidad,
+<strong>respondé este mail</strong> y te contactamos.</p>
+<p><a href="{PORTAL_URL}" style="background:#1565c0;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none">Ver todas las ofertas</a></p>
+<p>Saludos,<br>Ventas - Ferretería Avenida</p>
+<p style="color:#999;font-size:11px;margin-top:24px">Si no querés recibir estas sugerencias, respondé BAJA a este mail.</p>
+</div></body></html>"""
+    return asunto, texto, html
+
+
+def encolar_mails_clientes(
+    mails: list[dict[str, Any]],
+    *,
+    runtime: dict[str, Any],
+    now: datetime | None = None,
+) -> int:
+    """Encola cada mail en fe y registra lo ofrecido (una transacción por mail)."""
+    now_utc = (now or datetime.now(LOCAL_TZ)).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    cola = fe_table("emails_pendientes")
+    enviados = 0
+    for mail in mails:
+        asunto, texto, html = mail_cliente(mail)
+        stmts: list[tuple[str, tuple[Any, ...]]] = [(
+            f"INSERT INTO {cola} (destinatario, quien_envia, asunto, cuerpo_html, "
+            "cuerpo_texto, intentos, estado, creado_en, empresa_id) "
+            "VALUES (%s, %s, %s, %s, %s, 0, 'pendiente', %s, 1)",
+            (mail["email"], QUIEN_ENVIA, sanitizar_latin1(asunto),
+             sanitizar_latin1(html), sanitizar_latin1(texto), now_utc),
+        )]
+        for a in mail["articulos"]:
+            stmts.append((
+                "INSERT INTO api_ofertaenviada (cliente_id, articulo_id, enviado_en, "
+                "consultas, email) VALUES (%s, %s, %s, %s, %s)",
+                (mail["cliente_id"], a["clave"], now_utc, a["veces"], mail["email"]),
+            ))
+        try:
+            runtime["execute_batch"](stmts)
+        except Exception as exc:  # noqa: BLE001 - sigue con los demás clientes
+            print(f"ERROR encolando mail a {mail['numero']} {mail['email']}: {exc}")
+            continue
+        enviados += 1
+    return enviados
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Ofertas personalizadas según compras del cliente")
+    parser.add_argument("--dias-compras", type=int, default=DEFAULT_DIAS_COMPRAS,
+                        help=f"ventana de compras hacia atrás (default {DEFAULT_DIAS_COMPRAS})")
+    parser.add_argument("--to", action="append", default=[],
+                        help="destinatario del reporte (repite la opción)")
+    parser.add_argument("--enviar", action="store_true",
+                        help="encola los mails a clientes (sin esto solo muestra)")
+    parser.add_argument("--env", default=None,
+                        help="usar las credenciales de este .env en vez de la conexión "
+                             "del legado; para probar desde una PC")
+    args = parser.parse_args(argv)
+    if args.dias_compras < 1:
+        parser.error("--dias-compras debe ser >= 1")
+
+    try:
+        if args.env:
+            runtime = _load_runtime_local(Path(args.env))
+        else:
+            from resumen_busquedas_precios import _load_runtime
+            runtime = _load_runtime()
+    except ImportError:
+        from ops.automatizaciones.resumen_busquedas_precios import _load_runtime
+        runtime = _load_runtime()
+
+    now = datetime.now(LOCAL_TZ)
+    candidatos = fetch_candidatos(runtime, dias_compras=args.dias_compras, now=now)
+    mails = plan_mails(candidatos, runtime, now=now)
+
+    print(f"clientes con compras en oferta: {len(candidatos)}; "
+          f"mails a encolar: {len(mails)}")
+    for m in mails:
+        asunto, texto, _html = mail_cliente(m)
+        print(f"Para: {m['email']} ({m['numero']} {m['cliente']}) | Asunto: {asunto}")
+        print(texto)
+
+    if mails and args.enviar:
+        n = encolar_mails_clientes(mails, runtime=runtime, now=now)
+        print(f"MAILS A CLIENTES ENCOLADOS: {n}/{len(mails)}")
+
+    if args.to and not args.enviar:
+        print(f"(reporte a {', '.join(args.to)} omitido: sin --enviar no se manda nada)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
