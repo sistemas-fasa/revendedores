@@ -470,7 +470,6 @@ const fetchArticulos = async () => {
         if (extra < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); extra++ }
       })
       if (extra) {
-        actualizarDebug(`red:${extra}`)
         programarFlushPrecios()
       }
     }, 2500);
@@ -527,13 +526,6 @@ const dwellTimers = new Map()
 const visiblesAhora = new Set()
 let flushPreciosTimer = null
 let precioObserver = null
-// TEMPORAL debug visible (la consola se elimina en el build prod)
-const debugPrecios = ref('init')
-let debugObs = 0
-let debugFlush = 0
-function actualizarDebug(extra = '') {
-  debugPrecios.value = `obs:${debugObs} vis:${visiblesAhora.size} cola:${colaPrecios.size} flush:${debugFlush} vistos:${preciosVistosSet.size}${extra ? ' ' + extra : ''}`
-}
 
 // Vistos SOLO en memoria (por carga de página): persistirlo en sessionStorage
 // bloqueaba la recarga en visitas siguientes (artículos frescos sin precio
@@ -558,8 +550,6 @@ function programarFlushPrecios() {
 async function flushPreciosLote() {
   const claves = [...colaPrecios].filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
   colaPrecios.clear()
-  debugFlush++
-  actualizarDebug()
   if (!claves.length) return
   claves.forEach((c) => {
     const a = articulos.value.find((x) => x.clave === c)
@@ -603,16 +593,17 @@ function reintentarPrecio(art) {
   if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
 }
 
+// OJO: este callback corre en cada render (la arrow se recrea) →
+// NUNCA mutar estado reactivo acá adentro: genera un loop infinito
+// de renders que cuelga la pestaña.
 function observarTarjeta(el, art) {
   if (!el || !art) return
+  if (el.__observada === art.clave) return
   if (!('IntersectionObserver' in window)) {
-    actualizarDebug('sin-IO')
     if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
     return
   }
-  if (!necesitaPrecio(art)) { actualizarDebug('ya-visto'); return }
-  debugObs++
-  actualizarDebug()
+  if (!necesitaPrecio(art)) return
   if (!precioObserver) {
     precioObserver = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -620,7 +611,6 @@ function observarTarjeta(el, art) {
         if (!clave) return
         if (entry.isIntersecting) {
           visiblesAhora.add(clave)
-          actualizarDebug()
           if (!dwellTimers.has(clave)) {
             dwellTimers.set(clave, setTimeout(() => {
               dwellTimers.delete(clave)
@@ -639,6 +629,7 @@ function observarTarjeta(el, art) {
     }, { rootMargin: '200px', threshold: 0 })
   }
   el.__clave = art.clave
+  el.__observada = art.clave
   precioObserver.observe(el)
 }
 
@@ -1217,8 +1208,6 @@ onUnmounted(() => {
 
 <template>
   <div class="ui-page pb-20 xl:pb-0">
-    <!-- TEMPORAL debug precios (sacar cuando ande) -->
-    <div class="fixed bottom-2 right-2 z-[9999] rounded bg-black px-2 py-1 font-mono text-[11px] text-lime-300">precios {{ debugPrecios }}</div>
     <main class="main-content">
       <div
         class="grid items-start gap-4 transition-[grid-template-columns] duration-200"
