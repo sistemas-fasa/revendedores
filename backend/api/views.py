@@ -672,27 +672,17 @@ class ArticuloViewSet(BaseAppModelViewSet):
             if discontinuados_q and discontinuados_q.lower() in ['1', 'true', 's']:
                 queryset = queryset.filter(discontinuado='S')
 
-            # Si se pide solo ofertas, intentar filtrar por el campo disponible que contenga 'ofert'
+            # Si se pide solo ofertas, filtrar por el flag `oferta='S'`
+            # (antes se buscaba dinámicamente un campo con 'ofert' en el nombre,
+            # pero get_fields() devuelve primero la reversa 'ofertas_enviadas'
+            # y el filtro fallaba en silencio devolviendo todo el catálogo).
             if oferta_q and oferta_q.lower() in ['1', 'true', 's']:
-                try:
-                    # Buscar un campo del modelo cuyo nombre contenga 'ofert' o 'oferta'
-                    ofert_field = None
-                    for f in Articulos._meta.get_fields():
-                        name = getattr(f, 'name', '')
-                        if 'ofert' in name.lower() or 'oferta' in name.lower():
-                            ofert_field = name
-                            break
-
-                    if ofert_field:
-                        # Ofertas con stock efectivo (hijos resuelven al padre);
-                        # fallback a stock propio mientras el horario no calculó.
-                        queryset = queryset.filter(**{ofert_field: 'S'}).filter(
-                            Q(stock_efectivo__gt=0)
-                            | Q(stock_efectivo__isnull=True, stock__gt=0)
-                        )
-                except Exception:
-                    # Si algo falla, no interrumpir; devolver queryset sin filtrar
-                    pass
+                # Ofertas con stock efectivo (hijos resuelven al padre);
+                # fallback a stock propio mientras el horario no calculó.
+                queryset = queryset.filter(oferta='S').filter(
+                    Q(stock_efectivo__gt=0)
+                    | Q(stock_efectivo__isnull=True, stock__gt=0)
+                )
 
             queryset = excluir_ocultos(queryset)
             queryset = queryset.order_by('-es_destacado_avenida', '-is_favorito', 'clave')
@@ -703,23 +693,12 @@ class ArticuloViewSet(BaseAppModelViewSet):
         qs = super().get_queryset().annotate(es_destacado_avenida=Exists(destacados_subq))
         if discontinuados_q and discontinuados_q.lower() in ['1', 'true', 's']:
             qs = qs.filter(discontinuado='S')
-        # Si se solicita sólo ofertas, filtrar por campo de oferta y stock>0
+        # Si se solicita sólo ofertas, filtrar por `oferta='S'` y stock>0
         if oferta_q and oferta_q.lower() in ['1', 'true', 's']:
-            try:
-                ofert_field = None
-                for f in Articulos._meta.get_fields():
-                    name = getattr(f, 'name', '')
-                    if 'ofert' in name.lower() or 'oferta' in name.lower():
-                        ofert_field = name
-                        break
-
-                if ofert_field:
-                    qs = qs.filter(**{ofert_field: 'S'}).filter(
-                        Q(stock_efectivo__gt=0)
-                        | Q(stock_efectivo__isnull=True, stock__gt=0)
-                    )
-            except Exception:
-                pass
+            qs = qs.filter(oferta='S').filter(
+                Q(stock_efectivo__gt=0)
+                | Q(stock_efectivo__isnull=True, stock__gt=0)
+            )
         qs = excluir_ocultos(qs)
         return qs.order_by('-es_destacado_avenida', 'clave')
 
