@@ -448,6 +448,20 @@ const fetchArticulos = async () => {
 
     updateSuggestions();
 
+    // Red de seguridad: si el observer por visibilidad no encoló nada
+    // (navegador raro, refs no disparadas), pedir igual los pendientes.
+    // Si el observer anda, necesitaPrecio ya es false y esto no hace nada.
+    setTimeout(() => {
+      let extra = 0
+      articulos.value.forEach((a) => {
+        if (extra < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); extra++ }
+      })
+      if (extra) {
+        console.info(`[precios] red de seguridad: ${extra} pendientes`)
+        programarFlushPrecios()
+      }
+    }, 2500);
+
     // Ya no mostramos modal de ofertas desde la UI
   } catch (err) {
     showNotification('No se pudieron cargar los artículos. Intente más tarde.', 'error');
@@ -525,7 +539,11 @@ async function flushPreciosLote() {
   try {
     const payload = { claves, modalidad: modalidad.value, con_impuestos: conImpuestos.value }
     if (condicionPago.value !== '' && condicionPago.value != null) payload.condicion_pago = condicionPago.value
-    const { data } = await api.post('/api/consultar-precios-lote/', payload)
+    const post = api.post('/api/consultar-precios-lote/', payload)
+    const { data } = await Promise.race([
+      post,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout precios lote')), 20000)),
+    ])
     const precios = data.precios || {}
     claves.forEach((c) => {
       const a = articulos.value.find((x) => x.clave === c)
