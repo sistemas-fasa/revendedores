@@ -468,7 +468,8 @@ const fetchArticulos = async () => {
     // Ya no mostramos modal de ofertas desde la UI
   } catch (err) {
     if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return
-    showNotification('No se pudieron cargar los artículos. Intente más tarde.', 'error');
+    const detalle = err?.response?.status || err?.code || (err && err.message) || 'sin detalle'
+    showNotification(`No se pudieron cargar los artículos (${detalle}). Intente más tarde.`, 'error');
     console.error('Error al cargar artículos:', err);
   } finally {
     if (seq === listSeq) loading.value = false;
@@ -1522,7 +1523,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="animate-pulse rounded bg-gray-100 px-4 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio… (v3)</span>
+                      <span v-else>Cargando precio… (v4)</span>
                     </div>
                 </div>
                 
@@ -1662,7 +1663,7 @@ onUnmounted(() => {
                     </button>
                     <div v-else class="ui-button w-full animate-pulse px-3 py-2 text-sm text-gray-400">
                       <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Cargando precio… (v3)</span>
+                      <span v-else>Cargando precio… (v4)</span>
                     </div>
                   </div>
 
