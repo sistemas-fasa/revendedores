@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed, inject } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import { usePermisoDescarga } from '@/services/permisoDescarga'
@@ -488,7 +488,110 @@ const toggleFavorite = async (articulo) => {
   }
 };
 
-// === CONSULTAR PRECIO ===
+// === PRECIOS AUTOMÁTICOS POR VISIBILIDAD ===
+// El precio se pide solo cuando la tarjeta entra en pantalla y sigue visible
+// 1 segundo (dwell): rápido para el cliente y registra interés real.
+const PRECIOS_VISTOS_KEY = 'precios_vistos'
+let preciosVistosSet = new Set()
+try { preciosVistosSet = new Set(JSON.parse(sessionStorage.getItem(PRECIOS_VISTOS_KEY) || '[]')) } catch (e) {}
+const colaPrecios = new Set()
+const dwellTimers = new Map()
+const visiblesAhora = new Set()
+let flushPreciosTimer = null
+let precioObserver = null
+
+function persistirPreciosVistos() {
+  try { sessionStorage.setItem(PRECIOS_VISTOS_KEY, JSON.stringify([...preciosVistosSet].slice(-1000))) } catch (e) {}
+}
+
+function necesitaPrecio(art) {
+  return art && !art.mostrar_precio && !art.precio_lista && !art.consultandoPrecio && !art.precioError
+    && !preciosVistosSet.has(art.clave) && !colaPrecios.has(art.clave)
+}
+
+function programarFlushPrecios() {
+  if (flushPreciosTimer) return
+  flushPreciosTimer = setTimeout(() => { flushPreciosTimer = null; flushPreciosLote() }, 400)
+}
+
+async function flushPreciosLote() {
+  const claves = [...colaPrecios].filter((c) => necesitaPrecio(articulos.value.find((x) => x.clave === c)))
+  colaPrecios.clear()
+  if (!claves.length) return
+  claves.forEach((c) => {
+    const a = articulos.value.find((x) => x.clave === c)
+    if (a) a.consultandoPrecio = true
+  })
+  try {
+    const payload = { claves, modalidad: modalidad.value, con_impuestos: conImpuestos.value }
+    if (condicionPago.value !== '' && condicionPago.value != null) payload.condicion_pago = condicionPago.value
+    const { data } = await api.post('/api/consultar-precios-lote/', payload)
+    const precios = data.precios || {}
+    claves.forEach((c) => {
+      const a = articulos.value.find((x) => x.clave === c)
+      if (!a) return
+      a.consultandoPrecio = false
+      if (precios[c] !== undefined && precios[c] !== null) {
+        a.precio_lista = precios[c]
+        a.mostrar_precio = true
+      } else {
+        a.precioError = true
+      }
+      preciosVistosSet.add(c)
+    })
+    persistirPreciosVistos()
+  } catch (err) {
+    console.error('Error al consultar precios en lote:', err)
+    claves.forEach((c) => {
+      const a = articulos.value.find((x) => x.clave === c)
+      if (a) { a.consultandoPrecio = false; a.precioError = true }
+    })
+  }
+}
+
+function reintentarPrecio(art) {
+  art.precioError = false
+  preciosVistosSet.delete(art.clave)
+  persistirPreciosVistos()
+  if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
+}
+
+function observarTarjeta(el, art) {
+  if (!el || !art) return
+  if (!('IntersectionObserver' in window)) {
+    if (necesitaPrecio(art)) { colaPrecios.add(art.clave); programarFlushPrecios() }
+    return
+  }
+  if (!necesitaPrecio(art)) return
+  if (!precioObserver) {
+    precioObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const clave = entry.target.__clave
+        if (!clave) return
+        if (entry.isIntersecting) {
+          visiblesAhora.add(clave)
+          if (!dwellTimers.has(clave)) {
+            dwellTimers.set(clave, setTimeout(() => {
+              dwellTimers.delete(clave)
+              if (!visiblesAhora.has(clave)) return
+              const actual = articulos.value.find((a) => a.clave === clave)
+              if (!necesitaPrecio(actual)) return
+              colaPrecios.add(clave)
+              programarFlushPrecios()
+            }, 1000))
+          }
+        } else {
+          visiblesAhora.delete(clave)
+          if (dwellTimers.has(clave)) { clearTimeout(dwellTimers.get(clave)); dwellTimers.delete(clave) }
+        }
+      })
+    }, { rootMargin: '200px', threshold: 0 })
+  }
+  el.__clave = art.clave
+  precioObserver.observe(el)
+}
+
+// === CONSULTAR PRECIO INDIVIDUAL (fallback / reintento puntual) ===
 const consultarPrecio = async (articulo) => {
   try {
     // Mostrar loading en el botón
@@ -1050,6 +1153,15 @@ onMounted(async () => {
 
   window.setTimeout(focusSearchInput, 150)
 })
+
+onUnmounted(() => {
+  if (precioObserver) { precioObserver.disconnect(); precioObserver = null }
+  if (flushPreciosTimer) { clearTimeout(flushPreciosTimer); flushPreciosTimer = null }
+  dwellTimers.forEach((t) => clearTimeout(t))
+  dwellTimers.clear()
+  visiblesAhora.clear()
+  colaPrecios.clear()
+})
 </script>
 
 <template>
@@ -1297,6 +1409,7 @@ onMounted(async () => {
           <div
             v-for="art in articulos"
             :key="art.clave"
+            :ref="(el) => observarTarjeta(el, art)"
             :class="[
               'relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'bg-yellow-50 border border-yellow-300 opacity-95' : '',
@@ -1395,18 +1508,19 @@ onMounted(async () => {
                     <p class="text-xs font-bold uppercase text-gray-500">Precio</p>
                     <p class="line-clamp-1 text-left text-xl font-black text-red-700">$ {{ formatCurrency(art.precio_lista) }}</p>
                 </div>
-                <!-- Mostrar botón "Ver Precio" si no se muestra el precio -->
+                <!-- Precio automático por visibilidad -->
                 <div v-else class="flex-1">
-                    <button 
-                      @click="consultarPrecio(art)"
-                      :disabled="art.consultandoPrecio"
-                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'"
-                      class="ui-button px-4 py-2 text-sm transition"
+                    <button
+                      v-if="art.precioError"
+                      @click="reintentarPrecio(art)"
+                      class="ui-button border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 hover:bg-amber-100"
                     >
-                      <div v-if="art.consultandoPrecio" class="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full"></div>
-                      <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Ver precio</span>
+                      <span>Reintentar precio</span>
                     </button>
+                    <div v-else class="animate-pulse rounded bg-gray-100 px-4 py-2 text-sm text-gray-400">
+                      <span v-if="art.consultandoPrecio">Consultando...</span>
+                      <span v-else>Cargando precio…</span>
+                    </div>
                 </div>
                 
                 <div v-if="art.mostrar_precio && art.precio_lista" class="ml-auto min-w-[150px]">
@@ -1439,6 +1553,7 @@ onMounted(async () => {
           <article
             v-for="art in articulos"
             :key="art.clave"
+            :ref="(el) => observarTarjeta(el, art)"
             :class="[
               'overflow-hidden rounded-lg border shadow-sm transition hover:border-red-200 hover:shadow-md',
               art.discontinuado === 'S' ? 'border-yellow-300 bg-yellow-50' : '',
@@ -1537,15 +1652,16 @@ onMounted(async () => {
                   </div>
                   <div v-else>
                     <button
-                      @click="consultarPrecio(art)"
-                      :disabled="art.consultandoPrecio"
-                      :class="art.consultandoPrecio ? 'bg-gray-400 cursor-not-allowed' : 'border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'"
-                      class="ui-button w-full px-3 py-2 text-sm"
+                      v-if="art.precioError"
+                      @click="reintentarPrecio(art)"
+                      class="ui-button w-full border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 hover:bg-amber-100"
                     >
-                      <div v-if="art.consultandoPrecio" class="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent"></div>
-                      <span v-if="art.consultandoPrecio">Consultando...</span>
-                      <span v-else>Ver precio</span>
+                      <span>Reintentar precio</span>
                     </button>
+                    <div v-else class="ui-button w-full animate-pulse px-3 py-2 text-sm text-gray-400">
+                      <span v-if="art.consultandoPrecio">Consultando...</span>
+                      <span v-else>Cargando precio…</span>
+                    </div>
                   </div>
 
                   <div v-if="art.mostrar_precio && art.precio_lista" class="mt-3">

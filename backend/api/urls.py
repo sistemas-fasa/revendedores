@@ -40,6 +40,7 @@ urlpatterns = [
     path('whatsapp/webhook/', bot_views.whatsapp_webhook, name='whatsapp-webhook'),
     path('bot/test-chat/', bot_views.test_chat, name='bot-test-chat'),
     path('consultar-precio/', views.consultar_precio, name='consultar_precio'),
+    path('consultar-precios-lote/', views.consultar_precios_lote, name='consultar_precios_lote'),
     path('activacion/iniciar/', activacion_views.iniciar, name='activacion-iniciar'),
     path('activacion/enviar/', activacion_views.enviar, name='activacion-enviar'),
     path('activacion/reenviar/', activacion_views.reenviar, name='activacion-reenviar'),

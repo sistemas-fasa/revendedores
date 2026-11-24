@@ -855,6 +855,76 @@ def consultar_precio(request):
         }, status=500)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def consultar_precios_lote(request):
+    """Precios en lote para auto-carga por visibilidad.
+
+    Body: {claves: [...max 50], modalidad, con_impuestos, condicion_pago?}.
+    Registra una ConsultaPrecio por artículo encontrado (igual que el clic
+    individual), así el tracking de interés y oportunidades siguen andando.
+    """
+    try:
+        from .services.precios import calcular_precio_articulo
+
+        data = request.data or {}
+        raw = data.get('claves') or []
+        if not isinstance(raw, list) or not raw:
+            return Response({'error': 'claves es requerido y no puede estar vacío'},
+                            status=400)
+        vistos = []
+        for c in raw:
+            c = str(c or '').strip()
+            if c and c not in vistos:
+                vistos.append(c)
+        claves = vistos[:50]
+        if not claves:
+            return Response({'error': 'claves es requerido y no puede estar vacío'},
+                            status=400)
+
+        try:
+            cliente = Cliente.objects.select_related('codigo_localidad', 'condicion_pago').get(user=request.user)
+        except Cliente.DoesNotExist:
+            return Response({'error': 'Cliente no encontrado'}, status=404)
+
+        modalidad = data.get('modalidad') or 'retira'
+        con_impuestos = data.get('con_impuestos', True)
+        condicion_pago_id = data.get('condicion_pago') or (cliente.condicion_pago.id if cliente.condicion_pago else None)
+
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip_address = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')
+
+        mapa = {a.clave: a for a in Articulos.objects.filter(
+            clave__in=claves, empresa_id=settings.EMPRESA_ID)}
+        precios = {}
+        consultas = []
+        for clave in claves:
+            articulo = mapa.get(clave)
+            if articulo is None:
+                continue
+            try:
+                precios[clave] = calcular_precio_articulo(
+                    articulo=articulo,
+                    cliente=cliente,
+                    modalidad=modalidad,
+                    con_impuestos=con_impuestos,
+                    condicion_pago_id=condicion_pago_id,
+                )
+            except Exception:
+                logger.exception("Error calculando precio en lote para %s", clave)
+                continue
+            consultas.append(ConsultaPrecio(usuario=request.user, articulo=articulo,
+                                            ip_address=ip_address))
+        if consultas:
+            ConsultaPrecio.objects.bulk_create(consultas)
+
+        return Response({'success': True, 'precios': precios})
+    except Exception as e:
+        logger.exception("Error al consultar precios en lote")
+        return Response({'error': 'Error al consultar precios en lote',
+                         'details': str(e)}, status=500)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permiso_descarga_lista(request):
