@@ -18,6 +18,9 @@ Uso:
     ofertas_por_compra.py --dry-run            # muestra lo que mandaría
     ofertas_por_compra.py --to otro@ejemplo.com --dry-run
     ofertas_por_compra.py --enviar              # encola de verdad + reporte
+
+Los clientes sin compras en oferta reciben un fallback grupal con las
+``--top`` ofertas destacadas (próximas a vencer primero).
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ LOCAL_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 UTC = ZoneInfo("UTC")
 
 DEFAULT_DIAS_COMPRAS = 90
+DEFAULT_TOP_FALLBACK = 5
 CLIENTE_COOLDOWN_DIAS = 7
 ARTICULO_COOLDOWN_DIAS = 30
 MAX_ARTICULOS_MAIL = 5
@@ -233,6 +237,112 @@ def fetch_candidatos(
     return candidatos
 
 
+def fetch_top_ofertas(
+    runtime: dict[str, Any],
+    *,
+    limit: int = DEFAULT_TOP_FALLBACK,
+) -> list[dict[str, Any]]:
+    """Destacadas para el fallback grupal: próximas a vencer primero."""
+    ofertas = runtime["query"](
+        "SELECT clave, nombre, vencimiento_oferta FROM api_articulos "
+        "WHERE empresa_id = %s AND oferta = 'S' "
+        "AND COALESCE(discontinuado, '') != 'S' "
+        "AND COALESCE(stock_efectivo, stock, 0) > 0",
+        (EMPRESA_ID,),
+    )
+    rows = []
+    for clave, nombre, vence in ofertas:
+        clave = str(clave or "").strip()
+        if not clave:
+            continue
+        fecha = _to_local_date(vence)
+        rows.append({
+            "clave": clave,
+            "articulo": _limpiar_nombre(str(nombre or "").strip()),
+            "vence": _fmt_fecha(fecha),
+            "_vence_fecha": fecha,
+            "veces": 0,
+            "ultima_compra": None,
+        })
+    rows.sort(key=lambda a: (a["_vence_fecha"] is None, a["_vence_fecha"] or date.max,
+                             a["clave"]))
+    return [{k: v for k, v in a.items() if k != "_vence_fecha"}
+            for a in rows[:max(int(limit), 0)]]
+
+
+def fetch_todos_clientes(runtime: dict[str, Any]) -> list[dict[str, Any]]:
+    """Todos los opt-in con email válido (base del fallback grupal)."""
+    try:
+        filas = runtime["query"](
+            "SELECT ac.id, ac.numero_cliente, ac.nombre, COALESCE(au.email, '') "
+            "FROM api_cliente ac JOIN auth_user au ON au.id = ac.user_id "
+            "WHERE ac.recibe_ofertas_email = 1",
+            (),
+        )
+    except Exception as exc:  # noqa: BLE001
+        if "recibe_ofertas_email" not in str(exc):
+            raise
+        return []
+    clientes = []
+    for cliente_id, numero, nombre, email in filas:
+        email = str(email or "").strip()
+        if not _EMAIL_RE.match(email):
+            continue
+        clientes.append({
+            "cliente_id": int(cliente_id),
+            "numero": str(numero or "").strip(),
+            "cliente": str(nombre or "").strip(),
+            "email": email,
+        })
+    return clientes
+
+
+def plan_mails_fallback(
+    clientes: list[dict[str, Any]],
+    top_ofertas: list[dict[str, Any]],
+    runtime: dict[str, Any],
+    *,
+    ya_atendidos: set[int] | None = None,
+    now: datetime | None = None,
+    cliente_cooldown: int = CLIENTE_COOLDOWN_DIAS,
+    articulo_cooldown: int = ARTICULO_COOLDOWN_DIAS,
+    max_articulos: int = MAX_ARTICULOS_MAIL,
+) -> list[dict[str, Any]]:
+    """Fallback grupal: destacadas a quienes no recibieron personalizado."""
+    now = now or datetime.now(LOCAL_TZ)
+    ya_atendidos = ya_atendidos or set()
+    pendientes = [c for c in clientes if c["cliente_id"] not in ya_atendidos]
+    if not pendientes or not top_ofertas:
+        return []
+    ids = sorted({c["cliente_id"] for c in pendientes})
+    desde_cli = (now - timedelta(days=cliente_cooldown)).astimezone(UTC)
+    desde_art = (now - timedelta(days=articulo_cooldown)).astimezone(UTC)
+    previas = runtime["query"](
+        "SELECT cliente_id, articulo_id, enviado_en FROM api_ofertaenviada "
+        f"WHERE cliente_id IN ({_placeholders(len(ids))}) AND enviado_en >= %s",
+        (*ids, desde_art.strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    ya_ofrecido: set[tuple[int, str]] = set()
+    con_mail_reciente: set[int] = set()
+    for cli_id, art, enviado in previas:
+        ya_ofrecido.add((int(cli_id), str(art or "").strip()))
+        if isinstance(enviado, datetime):
+            aware = enviado if enviado.tzinfo else enviado.replace(tzinfo=UTC)
+            if aware >= desde_cli:
+                con_mail_reciente.add(int(cli_id))
+
+    mails: list[dict[str, Any]] = []
+    for c in pendientes:
+        if c["cliente_id"] in con_mail_reciente:
+            continue
+        elegidos = [a for a in top_ofertas
+                    if (c["cliente_id"], a["clave"]) not in ya_ofrecido
+                    ][:max_articulos]
+        if elegidos:
+            mails.append({**c, "articulos": elegidos, "fallback": True})
+    return mails
+
+
 def plan_mails(
     candidatos: list[dict[str, Any]],
     runtime: dict[str, Any],
@@ -293,10 +403,24 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
 
     nombre = mail["cliente"] or "cliente"
     arts = mail["articulos"]
-    if len(arts) == 1:
+    generico = bool(mail.get("fallback"))
+    if len(arts) == 1 and not generico:
         asunto = f"Oferta: {arts[0]['articulo'] or arts[0]['clave']}"
+    elif generico:
+        asunto = "Ofertas destacadas de la semana"
     else:
         asunto = "Ofertas en artículos que comprás habitualmente"
+
+    if generico:
+        bajada = ("Estas son las ofertas destacadas de esta semana "
+                  "en Ferretería Avenida:")
+        bajada_html = ("Estas son las <strong>ofertas destacadas</strong> "
+                       "de esta semana:")
+    else:
+        bajada = ("Estos artículos que comprás habitualmente están "
+                  "en oferta esta semana en Ferretería Avenida:")
+        bajada_html = ("Estos artículos que comprás habitualmente están "
+                       "<strong>en oferta</strong> esta semana:")
 
     lineas = []
     for a in arts:
@@ -306,8 +430,7 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
         lineas.append(linea)
     texto = (
         f"Hola {nombre},\n\n"
-        "Estos artículos que comprás habitualmente están en oferta "
-        "esta semana en Ferretería Avenida:\n\n"
+        f"{bajada}\n\n"
         + "\n".join(lineas)
         + "\n\nSi querés que te los preparemos, o necesitás precio por cantidad, "
         "respondé este mail y te contactamos.\n"
@@ -336,7 +459,7 @@ def mail_cliente(mail: dict[str, Any]) -> tuple[str, str, str]:
 </td></tr>
 <tr><td style="padding:24px">
 <p style="font-size:15px;color:#111827;margin:0 0 8px 0">Hola {esc(nombre)},</p>
-<p style="font-size:14px;color:#374151;margin:0 0 16px 0">Estos artículos que comprás habitualmente están <strong>en oferta</strong> esta semana:</p>
+<p style="font-size:14px;color:#374151;margin:0 0 16px 0">{bajada_html}</p>
 {tarjetas}
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px auto 8px auto"><tr><td align="center" style="background:#1d4ed8;border-radius:4px"><a href="{PORTAL_URL}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none">Ver todas mis ofertas</a></td></tr></table>
 <p style="font-size:13px;color:#6b7280;margin:16px 0 0 0">Si querés que te los preparemos, o necesitás precio por cantidad, <strong>respondé este mail</strong> y te contactamos.</p>
@@ -389,6 +512,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Ofertas personalizadas según compras del cliente")
     parser.add_argument("--dias-compras", type=int, default=DEFAULT_DIAS_COMPRAS,
                         help=f"ventana de compras hacia atrás (default {DEFAULT_DIAS_COMPRAS})")
+    parser.add_argument("--top", type=int, default=DEFAULT_TOP_FALLBACK,
+                        help=f"destacadas del fallback grupal (default {DEFAULT_TOP_FALLBACK})")
+    parser.add_argument("--sin-fallback", action="store_true",
+                        help="no mandar el grupal a quienes no cruzaron compras")
     parser.add_argument("--to", action="append", default=[],
                         help="destinatario del reporte (repite la opción)")
     parser.add_argument("--enviar", action="store_true",
@@ -413,9 +540,19 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(LOCAL_TZ)
     candidatos = fetch_candidatos(runtime, dias_compras=args.dias_compras, now=now)
     mails = plan_mails(candidatos, runtime, now=now)
+    fallback = []
+    if not args.sin_fallback:
+        top = fetch_top_ofertas(runtime, limit=args.top)
+        todos = fetch_todos_clientes(runtime)
+        atendidos = {m["cliente_id"] for m in mails}
+        fallback = plan_mails_fallback(todos, top, runtime,
+                                       ya_atendidos=atendidos, now=now,
+                                       max_articulos=args.top)
+        mails = mails + fallback
 
     print(f"clientes con compras en oferta: {len(candidatos)}; "
-          f"mails a encolar: {len(mails)}")
+          f"mails a encolar: {len(mails)} "
+          f"(personalizados: {len(mails) - len(fallback)}, grupal: {len(fallback)})")
     for m in mails:
         asunto, texto, _html = mail_cliente(m)
         print(f"Para: {m['email']} ({m['numero']} {m['cliente']}) | Asunto: {asunto}")

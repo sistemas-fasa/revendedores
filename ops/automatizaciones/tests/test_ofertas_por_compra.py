@@ -8,8 +8,11 @@ import pytest
 from ops.automatizaciones.ofertas_por_compra import (
     encolar_mails_clientes,
     fetch_candidatos,
+    fetch_todos_clientes,
+    fetch_top_ofertas,
     mail_cliente,
     plan_mails,
+    plan_mails_fallback,
 )
 
 ARG = ZoneInfo("America/Argentina/Buenos_Aires")
@@ -43,7 +46,10 @@ def _runtime(previas=(), executed=None):
             assert "codigo = 'F'" in sql
             return list(COMPRAS)
         if "FROM api_cliente" in sql:
-            return list(CLIENTES)
+            if "numero_cliente IN" in sql:
+                return list(CLIENTES)
+            # la base real filtra recibe_ofertas_email = 1; replicarlo en el mock
+            return [(i, n, c, e) for i, n, c, e, r in CLIENTES if r]
         if "FROM api_articulos" in sql:
             assert "oferta" in sql
             return list(OFERTAS)
@@ -121,3 +127,34 @@ def test_encolar_registra_oferta_y_cola(monkeypatch):
     assert "api_ofertaenviada" in historial[0][0]
     # email invalido nunca llega a encolar
     assert all("@" in m["email"] for m in mails)
+
+
+def test_top_ofertas_ordena_por_vencimiento():
+    top = fetch_top_ofertas(_runtime(), limit=5)
+    assert [a["clave"] for a in top] == ["CEM001", "HIE003"]
+    assert top[0]["vence"] == "30/11/2026"
+    assert top[1]["vence"] is None
+    assert fetch_top_ofertas(_runtime(), limit=1) == top[:1]
+
+
+def test_fallback_solo_a_quienes_no_recibieron_personalizado():
+    top = fetch_top_ofertas(_runtime(), limit=5)
+    todos = fetch_todos_clientes(_runtime())
+    # la baja (00099) no figura en todos
+    assert {c["numero"] for c in todos} == {"00040", "00077"}
+    mails = plan_mails_fallback(todos, top, _runtime(),
+                                ya_atendidos={10}, now=NOW)
+    assert [m["numero"] for m in mails] == ["00077"]
+    assert mails[0]["fallback"] is True
+    asunto, texto, html = mail_cliente(mails[0])
+    assert asunto == "Ofertas destacadas de la semana"
+    assert "destacadas" in texto.lower()
+
+
+def test_fallback_respeta_cooldown_cliente():
+    top = fetch_top_ofertas(_runtime(), limit=5)
+    todos = fetch_todos_clientes(_runtime())
+    previas = [(20, "OTRA001", datetime(2026, 11, 22, 8, 0))]
+    mails = plan_mails_fallback(todos, top, _runtime(previas=previas),
+                                ya_atendidos=set(), now=NOW)
+    assert [m["numero"] for m in mails] == ["00040"]
