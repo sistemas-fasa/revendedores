@@ -580,16 +580,6 @@ function pedirPreciosFaltantes() {
   if (n) programarFlushPrecios(false)
 }
 
-// Pide ya los precios de todo lo renderizado sin precio (llamar sincrónico
-// tras cada listado: no depende de observers ni timers para arrancar).
-function pedirPreciosFaltantes() {
-  let n = 0
-  articulos.value.forEach((a) => {
-    if (n < 60 && necesitaPrecio(a)) { colaPrecios.add(a.clave); n++ }
-  })
-  if (n) programarFlushPrecios(false)
-}
-
 function reintentarPrecio(art) {
   art.precioError = false
   preciosVistosSet.delete(art.clave)
