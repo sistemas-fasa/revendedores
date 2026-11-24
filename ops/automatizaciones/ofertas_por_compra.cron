@@ -1,0 +1,5 @@
+# Ofertas personalizadas por compras + fallback grupal (sábados 09:00 Arg).
+# Encola en fe.emails_pendientes (la manda genera-fe-2025 desde ventas@).
+# Respeta recibe_ofertas_email, cooldown 7d por cliente / 30d por artículo.
+# Lock propio; logs en /data/logs/linux/ofertas_por_compra/.
+0 12 * * 6 root JOB_NAME=ofertas_por_compra JOB_TIMEOUT_SECONDS=1800 JOB_COMMAND='set -a; . /run/secrets/informes-diarios.env; set +a; python3 /opt/automatizaciones/jobs/ofertas_por_compra.py --enviar' JOB_LOCK_FILE=/data/locks/ofertas_por_compra.lock /usr/local/bin/automatizaciones-runner >> /data/logs/linux/ofertas_por_compra/cron.log 2>&1

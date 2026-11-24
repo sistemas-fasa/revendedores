@@ -1,0 +1,8 @@
+ARG BASE_IMAGE=local/automatizaciones:rollback-ofertas-por-compra
+FROM ${BASE_IMAGE}
+
+# Job standalone (sin imports cruzados): solo el script + el cron vigente.
+COPY ofertas_por_compra.py /opt/automatizaciones/jobs/ofertas_por_compra.py
+COPY cron.disabled /etc/cron.d/automatizaciones
+
+RUN chmod 0644 /etc/cron.d/automatizaciones
